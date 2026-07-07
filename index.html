@@ -1,204 +1,144 @@
 <!doctype html>
-<html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aloe LSF 360 — V19 — Órbita 360, Seleção e Geometria Corrigida</title>
-<style>
-:root{--navy:#063e59;--teal:#087d7c;--green:#159447;--mint:#eaf8ed;--blue:#087cc2;--ink:#153b50;--line:#d6e6e8;--soft:#f7fbfb;--gold:#f5a52a}*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--ink);background:#eef6f3}button,input,select{font:inherit}button{cursor:pointer}.app{height:100%;display:grid;grid-template-rows:74px 1fr}.top{display:flex;align-items:center;gap:17px;padding:0 18px;background:linear-gradient(90deg,#fff 0 22%,#f8fffb 100%);border-bottom:1px solid var(--line)}.brand{font-size:26px;font-weight:900;letter-spacing:-.8px;white-space:nowrap;color:var(--navy);display:flex;align-items:center;gap:7px}.brand .leaf{font-size:31px}.brand span{color:var(--green)}.brand small{display:block;font-size:10px;letter-spacing:.2px;font-weight:600;color:#5c7c83;margin-top:1px}.brandText{display:block}.menus{display:flex;gap:2px;flex:1;overflow:auto}.menus button{border:0;background:transparent;color:var(--ink);padding:10px 9px;border-radius:9px;font-size:12px;white-space:nowrap}.menus button:hover,.menus button.active{background:#eaf7f0;color:#08743b}.topright{display:flex;gap:7px}.topBtn{border:1px solid #b9dfd1;background:#fff;color:#08733c;border-radius:11px;padding:10px 12px;font-weight:850;font-size:12px}.layout{display:grid;grid-template-columns:86px minmax(0,1fr) 360px;min-height:0}.left{background:#fff;border-right:1px solid var(--line);padding:8px;display:flex;flex-direction:column;gap:7px;overflow:auto}.tool{height:51px;border:1px solid transparent;border-radius:11px;background:#fff;color:#076394;display:grid;place-items:center;gap:2px;font-size:10px;font-weight:800;position:relative}.tool b{font-size:21px;line-height:17px}.tool:hover,.tool.active{background:#ecfbf4;border-color:#82cfa1;color:#08713b}.tool.active:before{content:"";position:absolute;left:-9px;top:10px;bottom:10px;width:4px;border-radius:4px;background:var(--green)}.center{display:grid;grid-template-rows:78px 1fr 35px;min-height:0}.ribbon{background:#fff;border-bottom:1px solid var(--line);display:flex;gap:4px;align-items:center;overflow:auto;padding:8px 10px}.rb{border:0;background:#fff;color:#0a5f8d;border-radius:10px;min-width:76px;padding:7px 6px;display:grid;place-items:center;gap:3px;font-size:11px;white-space:nowrap}.rb b{font-size:19px;line-height:17px}.rb:hover,.rb.active{background:#eaf8ef;color:#09713c}.stage{position:relative;overflow:hidden;background:linear-gradient(#c2e4ee 0 49%,#c9dbb9 49% 100%)}.stage.mode2d{background:#f8fcfc}.stage.mode2d:before{content:"";position:absolute;inset:0;background-image:linear-gradient(#dbe9eb 1px,transparent 1px),linear-gradient(90deg,#dbe9eb 1px,transparent 1px);background-size:40px 40px;pointer-events:none}.stage.mode3d:after{content:"";position:absolute;inset:49% 0 0;background:radial-gradient(ellipse at center,#dbeacb,#b7d1a8 70%,#a8c395);opacity:.78;pointer-events:none}.badge{z-index:5;position:absolute;left:18px;top:16px;background:var(--navy);color:white;border-radius:999px;padding:10px 15px;font-size:13px;font-weight:900}.viewToggle{position:absolute;right:18px;top:15px;z-index:6;display:flex;border:1px solid #bce1d3;border-radius:12px;overflow:hidden;background:#fff}.viewToggle button{border:0;background:#fff;color:#07597d;font-weight:900;padding:10px 13px}.viewToggle button.active{background:var(--green);color:#fff}.layers{z-index:6;position:absolute;left:18px;bottom:68px;width:190px;padding:12px;border-radius:13px;background:#ffffffed;border:1px solid #d6e8e5;box-shadow:0 10px 28px #1733}.layers h4{margin:0 0 8px;font-size:12px}.layers label{font-size:11px;display:flex;align-items:center;gap:7px;padding:5px 0}.layers i{width:10px;height:10px;border-radius:3px;display:inline-block}.camera{z-index:6;position:absolute;left:18px;top:85px;width:185px;background:#ffffffef;border:1px solid #d5e8e5;border-radius:13px;padding:11px;box-shadow:0 10px 28px #1233;display:none}.camera.show{display:block}.camera b{font-size:12px}.camGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.camGrid button{border:1px solid #bcdfe0;background:white;border-radius:8px;height:34px;color:#096287;font-size:16px;font-weight:900}.camGrid button:hover{background:#edf9f1;color:#08713b}.camera p{font-size:10px;line-height:1.45;margin:8px 0 0;color:#547885}.hint{z-index:6;position:absolute;left:18px;bottom:17px;max-width:600px;border:1px solid #d2e5e3;background:#fffffff2;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.42;box-shadow:0 9px 22px #1632}.toast{position:absolute;z-index:20;left:50%;bottom:15px;transform:translateX(-50%);display:none;background:#073e5c;color:#fff;padding:10px 14px;border-radius:9px;box-shadow:0 10px 28px #1028;font-size:12px}.toast.show{display:block}.inlineHeight{z-index:12;display:none;position:absolute;background:#fff;border:1px solid #7dd2e5;border-radius:10px;padding:8px 10px;box-shadow:0 12px 30px #1025;font-size:12px}.inlineHeight.show{display:block}.inlineHeight input{width:72px;border:1px solid #b9dbe5;border-radius:6px;padding:6px;margin:0 5px}.status{background:#fff;border-top:1px solid var(--line);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;color:#557580;font-size:11px}.right{background:#fff;border-left:1px solid var(--line);overflow:auto}.rightHeader{display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--line);font-size:19px;font-weight:900}.tabs{padding:10px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line)}.tabs button{border:1px solid #d3e4e6;background:#fff;color:#52727d;padding:7px 9px;font-size:11px;border-radius:999px}.tabs button.active{background:#eaf8ef;border-color:#83d5a1;color:#08713b}.panel{padding:13px}.card{border:1px solid var(--line);border-radius:12px;background:#fbfefd;padding:12px;margin-bottom:11px}.card h3{margin:0 0 9px;font-size:13px}.field{display:grid;gap:5px;margin:8px 0}.field label{font-size:10px;color:#66828e;font-weight:900;text-transform:uppercase}.field input,.field select{width:100%;border:1px solid #cddfe4;border-radius:8px;padding:9px;background:#fff;color:var(--ink)}.btn{border:1px solid #bddce4;background:#fff;color:#125a77;border-radius:8px;padding:8px 9px;font-size:12px;font-weight:850}.btn.green{background:var(--green);color:#fff;border-color:var(--green)}.btn.blue{background:var(--navy);color:#fff;border-color:var(--navy)}.btn.full{width:100%}.tip{background:#eaf9ee;border-left:4px solid var(--green);padding:9px;border-radius:7px;color:#286647;font-size:12px;line-height:1.44}.prop{display:grid;grid-template-columns:1fr auto;border-bottom:1px dashed #d8e8e7;padding:6px 0;font-size:12px}.prop span:last-child{font-weight:900}.list{max-height:265px;overflow:auto}.row{border-bottom:1px solid #e2edef;padding:8px 2px;font-size:11px;display:flex;justify-content:space-between;gap:6px}.row.active{background:#fff4dc}.checkrow{display:flex;gap:8px;align-items:center;font-size:12px;padding:4px 0}.modal{display:none;position:absolute;z-index:30;inset:0;background:#072d3c88;align-items:center;justify-content:center}.modal.show{display:flex}.modalBox{width:min(450px,90%);background:#fff;border-radius:17px;padding:20px;box-shadow:0 20px 55px #0006}.modalBox h2{margin:0 0 8px;font-size:18px}.modalBox p{font-size:13px;color:#557680;line-height:1.45}.modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}@media(max-width:1100px){.layout{grid-template-columns:72px minmax(0,1fr)}.right{position:fixed;right:0;top:74px;bottom:0;width:min(360px,94vw);z-index:40;transform:translateX(100%);transition:.25s;box-shadow:-8px 0 30px #1735}.right.open{transform:none}.menus{display:none}.left{padding:6px}.tool{height:47px}}@media(max-width:650px){.app{grid-template-rows:64px 1fr}.top{padding:0 10px}.brand{font-size:18px}.brand .leaf{font-size:22px}.brand small{display:none}.topright{margin-left:auto}.topBtn{padding:8px}.layout{grid-template-columns:58px minmax(0,1fr)}.tool{height:42px;font-size:9px}.tool b{font-size:17px}.ribbon{padding:5px}.rb{min-width:65px;font-size:10px}.layers{display:none}.hint{right:10px;left:10px;max-width:none}.camera{top:64px;left:10px}.stage{min-height:0}}
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#073d5b" />
+  <title>Aloe LSF 360 — Ambiente de Teste</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="header">
+      <div class="brand" aria-label="Aloe LSF 360">
+        <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 59C18 51 10 41 10 28C10 17 19 8 32 5C45 8 54 17 54 28C54 41 46 51 32 59Z" fill="#159447"/>
+          <path d="M32 12v38M18 24l14 10m14-10-14 10M18 37l14 9m14-9-14 9" fill="none" stroke="#eaf7ed" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <div class="brand-title">Aloe <span>LSF 360</span></div>
+          <div class="brand-subtitle">Arquitetura · Estrutura · Fabrico</div>
+        </div>
+      </div>
+      <nav class="main-menu" aria-label="Menu principal">
+        <button data-menu="new">Novo</button>
+        <button data-menu="open">Abrir</button>
+        <button data-menu="save">Salvar como</button>
+        <button data-menu="import">Importar</button>
+        <button data-menu="export">Exportar</button>
+        <button data-menu="location">Localização</button>
+        <button data-menu="print">Imprimir</button>
+      </nav>
+      <div class="header-actions">
+        <button class="header-pill" id="toggleView">2D / 3D</button>
+        <button class="header-pill" id="togglePanel">Painel</button>
+      </div>
+    </header>
 
-/* V18 — movement controls added without removing the existing interface */
-.objectControls{z-index:9;position:absolute;right:18px;bottom:52px;width:224px;background:#ffffffef;border:1px solid #b9dfd1;border-radius:15px;padding:11px;box-shadow:0 12px 30px #1234;display:none}.objectControls.show{display:block}.objectControls h4{margin:0 0 4px;font-size:12px;color:#074e69}.objectControls .mini{font-size:10px;color:#617f8b;margin:0 0 8px;line-height:1.35}.objStep{width:100%;border:1px solid #bfdce3;border-radius:8px;padding:7px;background:#fff;color:#164e67;font-size:11px;margin-bottom:8px}.objGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.objGrid button{height:34px;border:1px solid #b9dbe3;background:#fff;border-radius:8px;color:#075f86;font-weight:900;font-size:14px}.objGrid button:hover{background:#e9f8ef;color:#08713b}.objGrid .z{background:#edf9f1;border-color:#97d8aa;color:#08713b}.objActions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}.objActions button{border-radius:8px;padding:8px 5px;border:1px solid #bcdde3;background:#fff;color:#0a5d82;font-weight:900;font-size:11px}.objActions .danger{border-color:#efb6b0;background:#fff1f0;color:#b63328}.tool.deleteTool{color:#b63328}.tool.deleteTool:hover,.tool.deleteTool.active{background:#fff1f0;border-color:#efb6b0;color:#b63328}
-</style></head><body>
-<div class="app"><header class="top"><div class="brand"><span class="leaf">🌿</span><div class="brandText">Aloe <span>LSF 360</span><small>Arquitetura · Estrutura · Fabrico</small></div></div><nav class="menus"><button class="active" data-menu="home">Página inicial</button><button data-menu="new">Novo</button><button data-menu="open">Abrir</button><button data-menu="save">Salvar como</button><button data-menu="share">Compartilhar</button><button data-menu="import">Importar</button><button data-menu="export">Exportar</button><button data-menu="download">Baixar</button><button data-menu="settings">Configurações</button><button data-menu="location">Localização</button><button data-menu="print">Imprimir</button></nav><div class="topright"><button class="topBtn" id="viewBtn">2D / 3D</button><button class="topBtn" id="sideBtn">Painel</button></div></header>
-<div class="layout"><aside class="left" id="toolRail"></aside><main class="center"><div class="ribbon" id="ribbon"></div><div class="stage mode2d" id="stage"><canvas id="canvas"></canvas><div class="badge" id="badge">Vista 2D — Preparação</div><div class="viewToggle"><button id="btn2d" class="active">2D</button><button id="btn3d">3D</button></div><div class="layers"><h4>Camadas</h4><label><input type="checkbox" checked data-layer="faces"><i style="background:#65c977"></i>Arquitetura / volumes</label><label><input type="checkbox" checked data-layer="structure"><i style="background:#168ac9"></i>Estrutura LSF</label><label><input type="checkbox" checked data-layer="labels"><i style="background:#f3a62b"></i>Etiquetas / cotas</label><label><input type="checkbox" checked data-layer="terrain"><i style="background:#93b961"></i>Terreno</label></div><div class="objectControls" id="objectControls"><h4>Mover peça(s) selecionada(s)</h4><p class="mini" id="selectionInfo">Selecione uma ou várias peças. Os movimentos aplicam-se ao conjunto.</p><select class="objStep" id="moveStep"><option value="0.01">10 mm</option><option value="0.05" selected>50 mm</option><option value="0.10">100 mm</option><option value="0.25">250 mm</option><option value="0.50">500 mm</option></select><div class="objGrid"><span></span><button data-move="y-" title="Frente">↑</button><span></span><button data-move="x-" title="Esquerda">←</button><button data-move="z+" class="z" title="Cima">+Z</button><button data-move="x+" title="Direita">→</button><span></span><button data-move="y+" title="Trás">↓</button><span></span><span></span><button data-move="z-" class="z" title="Baixo">−Z</button><span></span></div><div class="objActions"><button id="activateMove">Mover</button><button id="activateOrbit">Órbita</button><button class="danger" id="deleteSelected">Apagar selecionado</button><button id="clearSelected">Limpar seleção</button></div></div><div class="camera" id="camera"><b>Órbita e vista 3D</b><div class="camGrid"><span></span><button data-cam="up">▲</button><span></span><button data-cam="left">◀</button><button data-cam="fit">◎</button><button data-cam="right">▶</button><span></span><button data-cam="down">▼</button><span></span><button data-cam="zin">＋</button><button data-cam="reset">↻</button><button data-cam="zout">−</button></div><p><b>Órbita 360:</b> botão Órbita + arrastar (horizontal sem limite).<br><b>Vista:</b> botão direito ou Shift+arrastar.<br><b>Zoom:</b> roda do rato ou +/−.<br><b>Peças:</b> use o painel “Mover peça(s)”.</p></div><div class="hint" id="hint">Desenhe formas em 2D. Para criar volume: selecione uma face fechada, escolha <b>Empurrar/Puxar</b> e arraste verticalmente. Em 3D use órbita, deslocação e zoom sem perder os restantes painéis.</div><div class="inlineHeight" id="inlineHeight">Altura <input id="heightInput" type="number" min="0" step="0.05" value="2.70"> m <button class="btn green" id="confirmHeight">Confirmar</button></div><div class="toast" id="toast"></div></div><div class="status"><span id="status">Pronto.</span><span id="coords">X 0.00 m · Y 0.00 m · Câmara 3D integrada</span></div></main><aside class="right" id="right"><div class="rightHeader"><span>Aloe LSF 360</span><button class="btn" id="closeRight">×</button></div><div class="tabs" id="tabs"></div><div class="panel" id="panel"></div></aside></div></div>
-<div class="modal" id="modal"><div class="modalBox"><h2 id="modalTitle">Aloe LSF 360</h2><p id="modalText"></p><div class="modalActions"><button class="btn" id="modalCancel">Fechar</button><button class="btn green" id="modalOk">OK</button></div></div></div>
-<script>
-(()=>{
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const cv=$('#canvas'), ctx=cv.getContext('2d'), stage=$('#stage');
-const TOOLS=[['select','↖','Selecionar'],['erase','⌫','Borracha'],['line','╱','Linha'],['rect','▭','Retângulo'],['poly','⬠','Polígono'],['circle','◯','Círculo'],['arc','⌒','Arco'],['lasso','◌','Laço'],['sample','◉','Material'],['push','↥','Empurrar'],['move','✥','Mover'],['orbit','◌','Órbita'],['scale','↗','Escala'],['offset','⇆','Offset'],['measure','↕','Cota'],['text','T','Texto'],['section','▣','Secção'],['zoom','⌕','Zoom'],['delete','✕','Apagar']];
-const RIB=[['line','╱','Linha'],['rect','▭','Retângulo'],['window','▣','Janela'],['push','↥','Empurrar / Puxar'],['orbit','◌','Órbita'],['lsf','▦','Gerar LSF'],['csv','⇩','Gerar CSV'],['profiles','☷','Perfis'],['sheet','▤','Folha painel'],['fit','⊙','Ajustar 3D'],['move','✥','Mover'],['orbit','◌','Órbita'],['delete','✕','Apagar'],['fix','✓','Fixar desenho']];
-$('#toolRail').innerHTML=TOOLS.map(([id,ic,tx])=>`<button class="tool ${id==='select'?'active':''}" data-tool="${id}"><b>${ic}</b>${tx}</button>`).join('');
-$('#ribbon').innerHTML=RIB.map(([id,ic,tx])=>`<button class="rb" data-act="${id}"><b>${ic}</b>${tx}</button>`).join('');
-const TABS=[['entity','Entidade'],['components','Componentes'],['instructor','Instrutor'],['warehouse','Biblioteca 3D'],['materials','Materiais'],['styles','Estilos'],['labels','Etiquetas'],['shadows','Sombras'],['scenes','Cenas'],['display','Exibição'],['smooth','Atenuar'],['model','Modelo'],['geolocation','Geolocalização'],['lsf','LSF'],['selection','Seleção'],['sheet','Folha painel']];
-$('#tabs').innerHTML=TABS.map(([id,tx],i)=>`<button class="${i===0?'active':''}" data-tab="${id}">${tx}</button>`).join('');
-const A={tool:'select',mode:'2d',shapes:[],selected:[],draft:null,poly:null,drag:null,multi:false,layers:{faces:true,structure:true,labels:true,terrain:true},view:{yaw:-0.72,pitch:0.52,zoom:68,panX:0,panY:0},scene:[],counter:1,geo:'',address:'',profile:'C90x40x0.95',track:'U90x40x0.95',status:'Pronto.'};
-const meter=52, snap=10;
-function resize(){const r=stage.getBoundingClientRect(),d=devicePixelRatio||1;cv.width=Math.floor(r.width*d);cv.height=Math.floor(r.height*d);cv.style.width=r.width+'px';cv.style.height=r.height+'px';ctx.setTransform(d,0,0,d,0,0);render()}
-addEventListener('resize',resize); resize();
-function toast(s){const e=$('#toast');e.textContent=s;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2300)}
-function setStatus(s){A.status=s;$('#status').textContent=s}
-function pxy(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
-function gridPt(p,e){if(e?.shiftKey)return p;return{x:Math.round(p.x/snap)*snap,y:Math.round(p.y/snap)*snap}}
-function d(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
-function closed(s){return ['rect','circle','poly'].includes(s.type)}
-function name(t){return {line:'Linha',rect:'Retângulo',circle:'Círculo',arc:'Arco',poly:'Polígono'}[t]||t}
-function newShape(o){const s={id:'S'+A.counter++,name:o.name||`${name(o.type)} ${A.counter-1}`,height:o.height||0,elev:o.elev||0,profile:o.profile||A.profile,material:o.material||'Aço galvanizado',...o};A.shapes.push(s);A.selected=[s.id];renderPanel();return s}
-function bounds(s){if(s.type==='rect'){return{x:Math.min(s.a.x,s.b.x),y:Math.min(s.a.y,s.b.y),w:Math.abs(s.b.x-s.a.x),h:Math.abs(s.b.y-s.a.y)}}if(s.type==='circle')return{x:s.a.x-s.r,y:s.a.y-s.r,w:s.r*2,h:s.r*2};if(s.type==='poly'){const xs=s.pts.map(p=>p.x),ys=s.pts.map(p=>p.y);return{x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)}}return{x:0,y:0,w:0,h:0}}
-function path2d(s,ct=ctx){ct.beginPath();if(s.type==='line'){ct.moveTo(s.a.x,s.a.y);ct.lineTo(s.b.x,s.b.y)}else if(s.type==='rect'){const b=bounds(s);ct.rect(b.x,b.y,b.w,b.h)}else if(s.type==='circle'){ct.arc(s.a.x,s.a.y,s.r,0,Math.PI*2)}else if(s.type==='arc'){ct.arc(s.a.x,s.a.y,s.r,s.start||0,s.end||Math.PI)}else if(s.type==='poly'){s.pts.forEach((p,i)=>i?ct.lineTo(p.x,p.y):ct.moveTo(p.x,p.y));ct.closePath()}}
-function pick2d(p){
-  for(let i=A.shapes.length-1;i>=0;i--){
-    const s=A.shapes[i];
-    if(s.type==='rect'){
-      const b=bounds(s); if(p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h)return s;
-    }else if(s.type==='circle'){
-      const radial=Math.abs(d(p,s.a)-s.r);
-      if(radial<10 || d(p,s.a)<=s.r)return s;
-    }else if(s.type==='poly'){
-      if(pointInPoly(p,s.pts))return s;
-      for(let j=0;j<s.pts.length;j++) if(nearSeg(p,s.pts[j],s.pts[(j+1)%s.pts.length])<9)return s;
-    }else if(s.type==='arc'){
-      const angle=Math.atan2(p.y-s.a.y,p.x-s.a.x);
-      const onRadius=Math.abs(d(p,s.a)-s.r)<10;
-      const start=s.start??0, end=s.end??Math.PI;
-      const inRange=start<=end ? angle>=start-.10&&angle<=end+.10 : angle>=start-.10||angle<=end+.10;
-      if(onRadius&&inRange)return s;
-    }else if(s.type==='line'&&nearSeg(p,s.a,s.b)<10)return s;
-  } return null;
-}
-function nearSeg(p,a,b){let dx=b.x-a.x,dy=b.y-a.y;let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy);t=Math.max(0,Math.min(1,t));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy))}
-function select(s,add=false){if(!s){if(!add)A.selected=[];renderPanel();render();return}if(add||A.multi){A.selected.includes(s.id)?A.selected=A.selected.filter(i=>i!==s.id):A.selected.push(s.id)}else A.selected=[s.id];renderPanel();render()}
-function shapePts(s){if(s.type==='rect'){const b=bounds(s);return[{x:b.x,y:b.y},{x:b.x+b.w,y:b.y},{x:b.x+b.w,y:b.y+b.h},{x:b.x,y:b.y+b.h}]}if(s.type==='circle'){let a=[];for(let i=0;i<64;i++){let t=i/64*Math.PI*2;a.push({x:s.a.x+Math.cos(t)*s.r,y:s.a.y+Math.sin(t)*s.r})}return a}if(s.type==='poly')return s.pts;return[]}
-function setTool(t){A.tool=t;$$('.tool').forEach(b=>{b.classList.toggle('active',b.dataset.tool===t);b.classList.toggle('deleteTool',b.dataset.tool==='delete')});$$('.rb').forEach(b=>b.classList.toggle('active',b.dataset.act===t));const msg={select:'Selecione objetos individuais ou use Ctrl/Cmd e a seleção múltipla.',line:'Clique e arraste para fixar uma linha.',rect:'Clique e arraste para fixar um retângulo. Ao largar fica sólido.',circle:'Clique no centro, arraste e largue para fixar o círculo.',arc:'Clique e arraste para criar um arco; largue para fixar.',poly:'Clique vértices; clique no primeiro ponto ou Enter para fechar.',push:'Selecione uma forma fechada e arraste verticalmente na vista 3D.',orbit:'Em 3D arraste para rodar a câmara. Use Shift+arrastar ou botão direito para deslocar.',move:'Selecione peça(s) e use as setas Mover para deslocar em X, Y e Z; pode também arrastar em 2D.',delete:'Selecione e apague o(s) objeto(s) selecionado(s).',lasso:'Arraste uma janela para selecionar vários objetos.'};setStatus(msg[t]||'Ferramenta ativa.');$('#hint').innerHTML=msg[t]||'Ferramenta ativa.';render()}
-function mode(m){A.mode=m;stage.classList.toggle('mode2d',m==='2d');stage.classList.toggle('mode3d',m==='3d');$('#badge').textContent=m==='2d'?'Vista 2D — Preparação':'Vista 3D — Estrutura LSF';$('#btn2d').classList.toggle('active',m==='2d');$('#btn3d').classList.toggle('active',m==='3d');$('#camera').classList.toggle('show',m==='3d');updateObjectControls();render()}
-function project3(p){
-  // Câmara ortográfica estável: não deforma retângulos em pirâmides.
-  // A órbita roda apenas a câmara; os vértices do sólido mantêm-se paralelos.
-  const ox=cv.clientWidth/2+A.view.panX;
-  const oy=cv.clientHeight*.62+A.view.panY;
-  const x=(p.x-cv.clientWidth/2)/meter;
-  const y=(p.y-cv.clientHeight*.62)/meter;
-  const z=p.z||0;
-  const cy=Math.cos(A.view.yaw), sy=Math.sin(A.view.yaw);
-  const X=x*cy-y*sy;
-  const Y=x*sy+y*cy;
-  const cp=Math.cos(A.view.pitch), sp=Math.sin(A.view.pitch);
-  const screenY=Y*cp-z*sp;
-  const depth=Y*sp+z*cp;
-  return {x:ox+X*A.view.zoom,y:oy+screenY*A.view.zoom,depth};
-}
-function draw3poly(points,fill,stroke,w=1){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill()}ctx.strokeStyle=stroke;ctx.lineWidth=w;ctx.stroke()}
-function render2d(){ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);for(const s of A.shapes){if(A.layers.faces||s.type==='line'){path2d(s);ctx.fillStyle=closed(s)?'rgba(84,196,128,.12)':'transparent';ctx.strokeStyle=A.selected.includes(s.id)?'#f5a52a':'#07537b';ctx.lineWidth=A.selected.includes(s.id)?3:2;closed(s)&&ctx.fill();ctx.stroke();if(A.selected.includes(s.id)){const b=bounds(s);ctx.setLineDash([4,4]);ctx.strokeStyle='#1b9bd1';ctx.strokeRect(b.x-5,b.y-5,b.w+10,b.h+10);ctx.setLineDash([])}}if(A.layers.labels&&closed(s)){const b=bounds(s);ctx.fillStyle='#0b567a';ctx.font='bold 12px Inter';ctx.fillText(`${s.name}${s.height?' · '+s.height.toFixed(2)+' m':''}`,b.x+6,b.y+18)}}if(A.draft){ctx.save();ctx.setLineDash([7,5]);ctx.strokeStyle='#159447';ctx.lineWidth=2;path2d(A.draft);ctx.stroke();ctx.restore()}
-if(A.drag?.kind==='lasso'){const x=Math.min(A.drag.start.x,A.drag.end.x),y=Math.min(A.drag.start.y,A.drag.end.y),w=Math.abs(A.drag.end.x-A.drag.start.x),h=Math.abs(A.drag.end.y-A.drag.start.y);ctx.save();ctx.setLineDash([5,4]);ctx.strokeStyle='#159447';ctx.fillStyle='rgba(21,148,71,.10)';ctx.strokeRect(x,y,w,h);ctx.fillRect(x,y,w,h);ctx.restore()}
-if(A.poly){ctx.save();ctx.setLineDash([7,5]);ctx.strokeStyle='#159447';ctx.lineWidth=2;ctx.beginPath();A.poly.pts.concat(A.poly.hover?[A.poly.hover]:[]).forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.restore()}}
-function drawStuds(s){const pts=shapePts(s),h=s.height||2.7;if(pts.length<3)return;const e=s.elev||0,base=pts.map(p=>project3({x:p.x,y:p.y,z:e})),top=pts.map(p=>project3({x:p.x,y:p.y,z:e+h}));for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];let L=d(a,b),n=Math.max(2,Math.round(L/(meter*.6))+1);for(let k=0;k<n;k++){let t=k/(n-1),pp={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};let q0=project3({x:pp.x,y:pp.y,z:e}),q1=project3({x:pp.x,y:pp.y,z:e+h});ctx.strokeStyle='#246b82';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(q0.x,q0.y);ctx.lineTo(q1.x,q1.y);ctx.stroke()}ctx.strokeStyle='#0e5d75';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(base[i].x,base[i].y);ctx.lineTo(base[(i+1)%pts.length].x,base[(i+1)%pts.length].y);ctx.moveTo(top[i].x,top[i].y);ctx.lineTo(top[(i+1)%pts.length].x,top[(i+1)%pts.length].y);ctx.stroke()}}
-function render3d(){ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);if(A.layers.terrain){ctx.fillStyle='rgba(235,248,255,.12)';ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight*.49);ctx.fillStyle='rgba(86,129,61,.14)';ctx.fillRect(0,cv.clientHeight*.49,cv.clientWidth,cv.clientHeight*.51)}let arr=A.shapes.filter(closed).map(s=>({s,dep:project3({x:bounds(s).x+bounds(s).w/2,y:bounds(s).y+bounds(s).h/2,z:(s.height||0)/2}).depth})).sort((a,b)=>a.dep-b.dep);for(const {s} of arr){const pts=shapePts(s),h=s.height||0;if(!h){const pp=pts.map(p=>project3({x:p.x,y:p.y,z:s.elev||0}));draw3poly(pp,'rgba(100,211,144,.14)','#0a607d',2);continue}const e=s.elev||0,bot=pts.map(p=>project3({x:p.x,y:p.y,z:e})),top=pts.map(p=>project3({x:p.x,y:p.y,z:e+h}));for(let i=0;i<pts.length;i++){let j=(i+1)%pts.length;draw3poly([bot[i],bot[j],top[j],top[i]],i%2?'rgba(154,211,230,.35)':'rgba(234,244,231,.35)','#0c5974',1.5)}draw3poly(top,'rgba(245,250,252,.70)','#0d5b75',2);if(A.layers.structure)drawStuds(s);if(A.selected.includes(s.id)){ctx.strokeStyle='#f2a329';ctx.lineWidth=4;ctx.beginPath();top.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.stroke()}if(A.layers.labels){const b=bounds(s),q=project3({x:b.x+b.w/2,y:b.y+b.h/2,z:(s.elev||0)+h+.12});ctx.fillStyle='#074d71';ctx.font='bold 14px Inter';ctx.fillText(`${s.name} · ${h.toFixed(2)} m`,q.x-55,q.y)}}}
-function render(){if(!cv.clientWidth)return;if(A.mode==='2d')render2d();else render3d();updateObjectControls();renderPanel(false)}
-function beginPush(s,p){if(!s||!closed(s))return toast('Selecione um retângulo, círculo ou polígono fechado.');A.selected=[s.id];mode('3d');A.tool='push';A.drag={kind:'push',id:s.id,startY:p.y,startH:s.height||0};$('#heightInput').value=(s.height||2.70).toFixed(2);const box=$('#inlineHeight');box.style.left=Math.min(cv.clientWidth-235,p.x+10)+'px';box.style.top=Math.max(65,p.y-18)+'px';box.classList.add('show');setStatus('Empurrar/Puxar ativo: arraste verticalmente e largue para fixar a altura.');render()}
-function endPush(){if(A.drag?.kind==='push'){const s=A.shapes.find(x=>x.id===A.drag.id);if(s){s.height=Math.max(0,Math.round(s.height*100)/100);toast(`Volume fixado: ${s.height.toFixed(2)} m.`)}A.drag=null;$('#inlineHeight').classList.remove('show');render()}}
-function getSelected(){return A.shapes.find(s=>s.id===A.selected[0])}
-function selectedShapes(){return A.shapes.filter(s=>A.selected.includes(s.id))}
-function moveSelected(axis, amount){const list=selectedShapes();if(!list.length){toast('Selecione uma ou várias peças antes de mover.');return}const px=amount*meter;for(const s of list){if(axis==='x')shiftShape(s,px,0);if(axis==='y')shiftShape(s,0,px);if(axis==='z')s.elev=Math.max(0,(s.elev||0)+amount)}toast(`${list.length} peça(s) deslocada(s): ${axis.toUpperCase()} ${amount>=0?'+':''}${(amount*1000).toFixed(0)} mm.`);render()}
-function shiftShape(s,dx,dy){if(s.a){s.a.x+=dx;s.a.y+=dy}if(s.b){s.b.x+=dx;s.b.y+=dy}if(s.pts)s.pts.forEach(p=>{p.x+=dx;p.y+=dy})}
-function deleteSelection(){if(!A.selected.length){toast('Selecione uma ou várias peças para apagar.');return}const n=A.selected.length;if(!confirm(`Apagar ${n} peça(s) selecionada(s)?`))return;A.shapes=A.shapes.filter(s=>!A.selected.includes(s.id));A.selected=[];toast(`${n} peça(s) eliminada(s).`);render()}
-function updateObjectControls(){const e=$('#objectControls');if(!e)return;const n=A.selected.length;e.classList.toggle('show',n>0);const info=$('#selectionInfo');if(info)info.textContent=n?`${n} peça(s) selecionada(s). As setas movem o conjunto em X, Y e Z.`:'Selecione uma ou várias peças.'}
-function pointInPoly(p,poly){let hit=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.y>p.y)!=(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))hit=!hit}return hit}
-function pick3d(p){
-  const arr=A.shapes.filter(closed).slice().sort((a,b)=>(a.elev||0)+(a.height||0)-((b.elev||0)+(b.height||0))).reverse();
-  for(const s of arr){
-    const pts=shapePts(s);
-    const z=(s.elev||0)+(s.height||0);
-    const top=pts.map(q=>project3({x:q.x,y:q.y,z}));
-    if(pointInPoly(p,top))return s;
-    // Permite selecionar também as faces laterais através do contorno projetado.
-    for(let i=0;i<pts.length;i++){
-      const j=(i+1)%pts.length;
-      const side=[project3({x:pts[i].x,y:pts[i].y,z:s.elev||0}),project3({x:pts[j].x,y:pts[j].y,z:s.elev||0}),top[j],top[i]];
-      if(pointInPoly(p,side))return s;
-    }
-  } return null;
-}
+    <section class="toolbar" aria-label="Ferramentas">
+      <button class="tool-button is-active" data-tool="select"><span>⌖</span>Selecionar</button>
+      <button class="tool-button" data-tool="line"><span>╱</span>Linha</button>
+      <button class="tool-button" data-tool="rect"><span>▭</span>Retângulo</button>
+      <button class="tool-button" data-tool="circle"><span>◯</span>Círculo</button>
+      <button class="tool-button" data-tool="arc"><span>◠</span>Arco</button>
+      <button class="tool-button" data-tool="polygon"><span>⬠</span>Polígono</button>
+      <button class="tool-button" data-tool="lasso"><span>◌</span>Laço</button>
+      <button class="tool-button" data-tool="pushpull"><span>↕</span>Empurrar/Puxar</button>
+      <button class="tool-button" data-tool="move"><span>✥</span>Mover</button>
+      <button class="tool-button" data-tool="rotate"><span>↻</span>Rodar</button>
+      <button class="tool-button" data-tool="orbit"><span>◉</span>Órbita</button>
+      <button class="tool-button danger" data-tool="delete"><span>⌫</span>Apagar</button>
+      <button class="tool-button green" id="generateLSF"><span>▦</span>Gerar LSF</button>
+      <button class="tool-button green" id="generateCSV"><span>CSV</span>Gerar CSV</button>
+      <button class="tool-button" id="fit3D"><span>◎</span>Ajustar 3D</button>
+    </section>
 
-cv.addEventListener('pointerdown', e => {
-  cv.setPointerCapture?.(e.pointerId);
-  const p = gridPt(pxy(e), e);
-  A.down = { p, raw: pxy(e) };
-  if (A.mode === '3d') {
-    if (A.tool === 'delete') { const s=pick3d(p); if(s){select(s,e.ctrlKey||e.metaKey);deleteSelection()} return; }
-    if (A.tool === 'select' || A.tool === 'move') { const s=pick3d(p); if(s){select(s,e.ctrlKey||e.metaKey); if(A.tool==='move')setStatus('Use o painel Mover para deslocar em X, Y e Z.');} else if(!e.ctrlKey&&!e.metaKey)select(null); return; }
-    if (A.tool === 'orbit' && !e.shiftKey && e.button !== 2) {
-      A.drag = { kind:'orbit', x:e.clientX, y:e.clientY, yaw:A.view.yaw, pitch:A.view.pitch };
-      return;
-    }
-    if (e.button === 2 || e.shiftKey) {
-      A.drag = { kind:'pan', x:e.clientX, y:e.clientY, px:A.view.panX, py:A.view.panY };
-      return;
-    }
-    if (A.tool === 'push') {
-      beginPush(getSelected() || A.shapes.filter(closed).slice(-1)[0], p);
-      return;
-    }
-    return;
-  }
-  if (A.tool === 'select') { select(pick2d(p), e.ctrlKey || e.metaKey); return; }
-  if (A.tool === 'erase') {
-    const s = pick2d(p);
-    if (s) {
-      A.shapes = A.shapes.filter(x => x.id !== s.id);
-      A.selected = A.selected.filter(i => i !== s.id);
-      toast('Objeto eliminado.'); render();
-    }
-    return;
-  }
-  if (A.tool === 'delete') { const s=pick2d(p); if(s){select(s,e.ctrlKey||e.metaKey);deleteSelection()} return; }
-  if (A.tool === 'move') {
-    const s = pick2d(p);
-    if (s) {
-      select(s, e.ctrlKey || e.metaKey);
-      A.drag = { kind:'move', ids:[...A.selected], start:p, orig:A.shapes.filter(x => A.selected.includes(x.id)).map(x => ({id:x.id, data:JSON.parse(JSON.stringify(x))})) };
-    }
-    return;
-  }
-  if (A.tool === 'push') {
-    const s = pick2d(p);
-    if (s) beginPush(s, p); else toast('Clique numa forma fechada.');
-    return;
-  }
-  if (A.tool === 'lasso') { A.drag = { kind:'lasso', start:p, end:p }; return; }
-  if (['line','rect','circle','arc'].includes(A.tool)) { A.draft = { type:A.tool, a:p, b:p, r:0, start:0, end:Math.PI }; return; }
-  if (A.tool === 'poly') {
-    if (!A.poly) { A.poly = { pts:[p], hover:p }; render(); }
-    else {
-      const first = A.poly.pts[0];
-      if (A.poly.pts.length >= 3 && d(first,p) < 12) finishPoly();
-      else { A.poly.pts.push(p); A.poly.hover = p; render(); }
-    }
-  }
-});
-cv.addEventListener('pointermove',e=>{const raw=pxy(e),p=gridPt(raw,e);$('#coords').textContent=`X ${(p.x/meter).toFixed(2)} m · Y ${(p.y/meter).toFixed(2)} m · Zoom ${A.view.zoom.toFixed(0)}%`;if(A.drag?.kind==='orbit'){
-  A.view.yaw=A.drag.yaw+(e.clientX-A.drag.x)*.010;
-  A.view.pitch=Math.max(-1.25,Math.min(1.25,A.drag.pitch+(e.clientY-A.drag.y)*.008));
-  render(); return;
-}if(A.drag?.kind==='pan'){A.view.panX=A.drag.px+(e.clientX-A.drag.x);A.view.panY=A.drag.py+(e.clientY-A.drag.y);render();return}if(A.drag?.kind==='push'){const s=A.shapes.find(x=>x.id===A.drag.id);if(s){s.height=Math.max(0,Math.min(10,A.drag.startH+(A.drag.startY-p.y)/meter));$('#heightInput').value=s.height.toFixed(2);render()}return}if(A.drag?.kind==='move'){let dx=p.x-A.drag.start.x,dy=p.y-A.drag.start.y;for(const o of A.drag.orig){let s=A.shapes.find(x=>x.id===o.id);Object.assign(s,JSON.parse(JSON.stringify(o.data)));if(s.a){s.a.x+=dx;s.a.y+=dy}if(s.b){s.b.x+=dx;s.b.y+=dy}if(s.pts)s.pts.forEach(q=>{q.x+=dx;q.y+=dy})}render();return}if(A.drag?.kind==='lasso'){A.drag.end=p;render();return}if(A.draft){A.draft.b=p;A.draft.r=d(A.draft.a,p);render()}else if(A.poly){A.poly.hover=p;render()}});
-cv.addEventListener('pointerup',e=>{const p=gridPt(pxy(e),e);if(A.drag?.kind==='orbit'||A.drag?.kind==='pan'){A.drag=null;return}if(A.drag?.kind==='push'){endPush();return}if(A.drag?.kind==='move'){A.drag=null;toast('Objeto deslocado.');render();return}if(A.drag?.kind==='lasso'){const b={x:Math.min(A.drag.start.x,p.x),y:Math.min(A.drag.start.y,p.y),w:Math.abs(A.drag.start.x-p.x),h:Math.abs(A.drag.start.y-p.y)};A.selected=A.shapes.filter(s=>{let q=bounds(s);return q.x>=b.x&&q.y>=b.y&&q.x+q.w<=b.x+b.w&&q.y+q.h<=b.y+b.h}).map(s=>s.id);A.drag=null;toast(`${A.selected.length} objeto(s) selecionado(s).`);render();return}if(A.draft){const q=A.draft;A.draft=null;if(q.type==='line'&&d(q.a,p)>5)newShape({type:'line',a:q.a,b:p});if(q.type==='rect'&&Math.abs(p.x-q.a.x)>8&&Math.abs(p.y-q.a.y)>8)newShape({type:'rect',a:q.a,b:p});if(q.type==='circle'&&d(q.a,p)>7)newShape({type:'circle',a:q.a,r:d(q.a,p)});if(q.type==='arc'&&d(q.a,p)>7)newShape({type:'arc',a:q.a,r:d(q.a,p),start:0,end:Math.PI});toast('Figura fixada.');render()}});
-cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('wheel',e=>{if(A.mode==='3d'){e.preventDefault();A.view.zoom=Math.max(30,Math.min(170,A.view.zoom*(e.deltaY>0?.88:1.14)));render()}},{passive:false});
-function finishPoly(){if(!A.poly||A.poly.pts.length<3)return toast('O polígono precisa de três pontos.');newShape({type:'poly',pts:A.poly.pts});A.poly=null;toast('Polígono fixado.');render()}
-function clearDraft(){A.draft=null;A.poly=null;A.drag=null;$('#inlineHeight').classList.remove('show')}
-addEventListener('keydown',e=>{if(e.key==='Escape'){clearDraft();toast('Operação cancelada.');render()}if(e.key==='Delete'||e.key==='Backspace'){if(A.selected.length){e.preventDefault();deleteSelection()}return}if(e.key==='Enter'&&A.poly)finishPoly();if(A.mode==='3d'){const key=e.key.toLowerCase();const step=Number($('#moveStep')?.value||0.05);if(A.tool==='move'&&A.selected.length){if(key==='arrowup'||key==='w')moveSelected('y',-step);else if(key==='arrowdown'||key==='s')moveSelected('y',step);else if(key==='arrowleft'||key==='a')moveSelected('x',-step);else if(key==='arrowright'||key==='d')moveSelected('x',step);else if(key==='pageup')moveSelected('z',step);else if(key==='pagedown')moveSelected('z',-step);else return;e.preventDefault();return}let m=18;if(key==='arrowup'||key==='w')A.view.panY+=m;if(key==='arrowdown'||key==='s')A.view.panY-=m;if(key==='arrowleft'||key==='a')A.view.panX+=m;if(key==='arrowright'||key==='d')A.view.panX-=m;if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(key)){e.preventDefault();render()}}});
-function cam(a){if(a==='up')A.view.panY+=25;if(a==='down')A.view.panY-=25;if(a==='left')A.view.panX+=25;if(a==='right')A.view.panX-=25;if(a==='zin')A.view.zoom=Math.min(170,A.view.zoom*1.15);if(a==='zout')A.view.zoom=Math.max(30,A.view.zoom*.87);if(a==='fit'||a==='reset')A.view={yaw:-.72,pitch:.52,zoom:68,panX:0,panY:0};render()}
-$$('[data-cam]').forEach(b=>b.onclick=()=>cam(b.dataset.cam));
-$$('[data-move]').forEach(b=>b.onclick=()=>{const raw=b.dataset.move,step=Number($('#moveStep').value||0.05);const axis=raw[0],sign=raw[1]==='+'?1:-1;moveSelected(axis,sign*step)});
-$('#activateMove').onclick=()=>{setTool('move');setStatus('Mover ativo: use as setas do painel para mover a seleção.');};
-$('#activateOrbit').onclick=()=>{mode('3d');setTool('orbit');};
-$('#deleteSelected').onclick=deleteSelection;
-$('#clearSelected').onclick=()=>{A.selected=[];render()};
-$$('.tool').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$$('[data-act]').forEach(b=>b.onclick=()=>{const a=b.dataset.act;if(['line','rect','circle','arc','poly','push','orbit','move','lasso','delete'].includes(a))setTool(a);else if(a==='lsf'){A.shapes.filter(closed).forEach(s=>{if(!s.height)s.height=2.70});mode('3d');toast('Estrutura LSF gerada: guias e montantes visíveis.');render()}else if(a==='csv')exportCSV();else if(a==='profiles'){setTab('profiles')}else if(a==='sheet'){setTab('sheet')}else if(a==='fit'){mode('3d');cam('fit')}else if(a==='fix'){if(A.poly)finishPoly();else toast('Não existe desenho pendente.')}});
-$('#viewBtn').onclick=()=>mode(A.mode==='2d'?'3d':'2d');$('#btn2d').onclick=()=>mode('2d');$('#btn3d').onclick=()=>mode('3d');$('#sideBtn').onclick=()=>$('#right').classList.toggle('open');$('#closeRight').onclick=()=>$('#right').classList.remove('open');$$('[data-layer]').forEach(c=>c.onchange=()=>{A.layers[c.dataset.layer]=c.checked;render()});
-$('#confirmHeight').onclick=()=>{const s=getSelected(),h=Number($('#heightInput').value);if(s&&Number.isFinite(h)){s.height=Math.max(0,h);mode('3d');$('#inlineHeight').classList.remove('show');A.drag=null;toast(`Altura confirmada: ${h.toFixed(2)} m.`);render()}};
-function exportCSV(){const rows=[['PROJETO','PAINEL','TIPO','PERFIL','LARGURA_MM','PROFUNDIDADE_MM','ALTURA_MM','REFERENCIA']];let k=1;for(const s of A.shapes.filter(closed)){const b=bounds(s);rows.push(['Aloe LSF 360','P'+String(k).padStart(2,'0'),name(s.type),s.profile,(b.w/meter*1000).toFixed(0),(b.h/meter*1000).toFixed(0),((s.height||0)*1000).toFixed(0),s.id]);k++}if(k===1)return toast('Desenhe pelo menos uma forma fechada antes de gerar CSV.');const text=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='aloe_lsf360_fabrico.csv';a.click();URL.revokeObjectURL(a.href);toast('CSV de fabrico gerado.');}
-function setTab(id){$$('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));renderPanel()}
-function renderPanel(force=true){const tab=$('#tabs .active')?.dataset.tab||'entity', sel=A.shapes.filter(s=>A.selected.includes(s.id));let h='';if(tab==='entity'){h=sel.length?`<div class="tip"><b>${sel.length} objeto(s) selecionado(s).</b> Pode editar, mover, extrudir ou gerar LSF para a seleção.</div><div class="card"><h3>Propriedades</h3><div class="prop"><span>Tipo</span><span>${name(sel[0].type)}</span></div><div class="prop"><span>Perfil</span><span>${sel[0].profile}</span></div><div class="prop"><span>Altura</span><span>${sel[0].height?sel[0].height.toFixed(2)+' m':'2D'}</span></div><div class="prop"><span>Cota Z</span><span>${(sel[0].elev||0).toFixed(2)} m</span></div><button class="btn green full" id="editSel">Editar perfil</button><button class="btn full" id="moveFromPanel" style="margin-top:7px">Mover seleção</button><button class="btn full" id="orbitFromPanel" style="margin-top:7px">Órbita</button><button class="btn full" id="deleteFromPanel" style="margin-top:7px;color:#b63328;border-color:#efb6b0">Apagar selecionado</button></div>`:`<div class="tip">Selecione uma figura ou perfil. O desenho e todos os painéis continuam disponíveis na mesma interface.</div><div class="card"><h3>Objetos do projeto</h3><div class="list">${A.shapes.length?A.shapes.map(s=>`<div class="row ${A.selected.includes(s.id)?'active':''}"><span>${s.name}</span><span>${s.height?s.height.toFixed(2)+' m':'2D'}</span></div>`).join(''):'<div class="row">Ainda não existem objetos.</div>'}</div></div>`}else if(tab==='components'){h='<div class="card"><h3>Componentes</h3><button class="btn full" id="addDoor">Adicionar porta</button><button class="btn full" style="margin-top:7px" id="addWindow">Adicionar janela</button><div class="tip" style="margin-top:9px">Biblioteca para portas, janelas, escadas, cobertura e elementos LSF.</div></div>'}else if(tab==='instructor'){h='<div class="card"><h3>Instrutor</h3><p style="font-size:12px;line-height:1.5">1. Desenhe uma forma fechada.<br>2. Selecione-a.<br>3. Use Empurrar/Puxar por arrasto.<br>4. Gere a estrutura LSF.<br>5. Exporte CSV de fabrico.</p></div>'}else if(tab==='warehouse'){h='<div class="card"><h3>Biblioteca 3D</h3><div class="field"><label>Pesquisar objeto</label><input placeholder="Ex.: janela, cobertura, perfil C"></div><button class="btn green full">Pesquisar biblioteca</button></div>'}else if(tab==='materials'){h='<div class="card"><h3>Materiais</h3><div class="field"><label>Material ativo</label><select><option>Aço galvanizado</option><option>OSB 12 mm</option><option>MgO 12 mm</option><option>Isolamento</option><option>Painel sandwich</option></select></div><button class="btn full">Aplicar à seleção</button></div>'}else if(tab==='styles'){h='<div class="card"><h3>Estilos</h3><div class="checkrow"><input type="checkbox" checked> Contornos técnicos</div><div class="checkrow"><input type="checkbox" checked> Fundo paisagem</div><div class="checkrow"><input type="checkbox"> Sombras fortes</div></div>'}else if(tab==='labels'){h='<div class="card"><h3>Etiquetas</h3><div class="field"><label>Texto</label><input id="labelText" placeholder="Ex.: P01-M01"></div><button class="btn green full" id="addLabel">Adicionar etiqueta</button></div>'}else if(tab==='shadows'){h='<div class="card"><h3>Sombras</h3><div class="field"><label>Hora solar</label><input type="range" min="7" max="20" value="14"></div><div class="checkrow"><input type="checkbox" checked> Mostrar sombras</div></div>'}else if(tab==='scenes'){h='<div class="card"><h3>Cenas e animação</h3><button class="btn blue full" id="saveScene">Guardar cena atual</button><div class="field"><label>Tempo de transição (s)</label><input type="number" value="1.0" step="0.1"></div><div class="field"><label>Tempo de espera (s)</label><input type="number" value="1.0" step="0.1"></div><button class="btn green full" id="playScene">Reproduzir cenas</button></div>'}else if(tab==='display'){h='<div class="card"><h3>Exibição</h3><button class="btn full" id="go2d">Vista 2D</button><button class="btn full" style="margin-top:7px" id="go3d">Vista 3D</button><button class="btn full" style="margin-top:7px" id="fit3d">Ajustar vista 3D</button></div>'}else if(tab==='smooth'){h='<div class="card"><h3>Atenuar / Suavizar</h3><div class="checkrow"><input type="checkbox" checked> Suavizar arestas</div><div class="checkrow"><input type="checkbox"> Ocultar arestas internas</div></div>'}else if(tab==='model'){h='<div class="card"><h3>Informações do modelo</h3><div class="prop"><span>Formas</span><span>${A.shapes.length}</span></div><div class="prop"><span>Volumes</span><span>${A.shapes.filter(s=>s.height>0).length}</span></div><div class="prop"><span>Perfil ativo</span><span>${A.profile}</span></div></div>'}else if(tab==='geolocation'){h='<div class="card"><h3>📍 Paisagem por geolocalização</h3><div class="field"><label>Rua e código postal</label><input id="geoInput" value="${A.address}" placeholder="Rua, número, 0000-000 Localidade"></div><button class="btn blue full" id="geoFind">Localizar terreno</button><div class="tip" style="margin-top:8px" id="geoResult">Pesquisa por nome da rua, número, código postal e localidade.</div><div class="field"><label>Coordenadas (opcional)</label><input placeholder="Latitude, Longitude"></div><button class="btn green full" id="geoApply">Aplicar paisagem ao projeto</button></div>'}else if(tab==='profiles'){h=`<div class="card"><h3>Catálogo de perfis LSF</h3><div class="field"><label>Montantes / vigas C</label><select id="profileSel">${['C90x40x0.95','C100x40x0.95','C120x40x1.20','C140x40x1.20','C150x50x1.50','C160x50x1.50','C180x50x1.50','C200x50x1.50','C250x50x2.00','C300x50x2.00'].map(x=>`<option ${A.profile===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="field"><label>Guias U</label><select id="trackSel">${['U90x40x0.95','U100x40x0.95','U120x40x1.20','U140x40x1.20','U150x50x1.50','U200x50x1.50','U300x50x2.00'].map(x=>`<option ${A.track===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="field"><label>Outras famílias</label><select><option>L 40–90</option><option>Ómega / Cartola 35–120</option><option>Viga LSF 150–300</option><option>Perfil de piso 150–300</option></select></div><button class="btn green full" id="applyProfiles">Aplicar aos selecionados</button></div>`}else if(tab==='lsf'){h='<div class="card"><h3>Estrutura LSF e CSV</h3><div class="field"><label>Espaçamento de montantes</label><select><option>400 mm</option><option selected>600 mm</option></select></div><button class="btn green full" id="genLSF">Gerar estrutura LSF</button><button class="btn blue full" style="margin-top:8px" id="genCSV">Gerar CSV de fabrico</button><div class="tip" style="margin-top:8px">O CSV inclui painéis, dimensões e perfil selecionado. Operações CNC específicas são configuradas na Biblioteca CNC.</div></div>'}else if(tab==='selection'){
-  const profiles=[...new Set(A.shapes.map(s=>s.profile))];
-  h='<div class="tip"><b>'+sel.length+' objeto(s) selecionado(s).</b> Filtre e selecione objetos reais por tipo ou perfil.</div><div class="card"><button class="btn full" id="toggleMulti">'+(A.multi?'Desativar':'Ativar')+' seleção múltipla</button><button class="btn full" style="margin-top:7px" id="clearSel">Limpar seleção</button><div class="field"><label>Filtro por tipo</label><select id="filterType"><option value="all">Todos</option><option value="rect">Retângulos</option><option value="circle">Círculos</option><option value="arc">Arcos</option><option value="poly">Polígonos</option><option value="line">Linhas</option></select></div><div class="field"><label>Filtro por perfil</label><select id="filterProfile"><option value="all">Todos</option>'+profiles.map(p=>'<option value="'+p+'">'+p+'</option>').join('')+'</select></div><button class="btn green full" id="applyFilter" style="margin-top:8px">Selecionar filtrados</button></div>'}else if(tab==='sheet'){h='<div class="card"><h3>Folha de painel</h3><div class="field"><label>Painel</label><select>'+A.shapes.filter(closed).map(s=>`<option>${s.name}</option>`).join('')+'</select></div><button class="btn green full" id="makeSheet">Gerar folha de painel</button><div class="tip" style="margin-top:8px">Inclui identificação, cotas, montantes, guias e lista de cortes.</div></div>'}
-$('#panel').innerHTML=h;bindPanel();}
-function bindPanel(){$('#editSel')?.addEventListener('click',()=>setTab('profiles'));$('#moveFromPanel')?.addEventListener('click',()=>setTool('move'));$('#orbitFromPanel')?.addEventListener('click',()=>{mode('3d');setTool('orbit')});$('#deleteFromPanel')?.addEventListener('click',deleteSelection);$('#addDoor')?.addEventListener('click',()=>toast('Porta adicionada à biblioteca de componentes.'));$('#addWindow')?.addEventListener('click',()=>toast('Janela adicionada à biblioteca de componentes.'));$('#addLabel')?.addEventListener('click',()=>toast('Etiqueta adicionada ao objeto selecionado.'));$('#saveScene')?.addEventListener('click',()=>toast('Cena guardada.'));$('#playScene')?.addEventListener('click',()=>toast('Reprodução de cenas iniciada.'));$('#go2d')?.addEventListener('click',()=>mode('2d'));$('#go3d')?.addEventListener('click',()=>mode('3d'));$('#fit3d')?.addEventListener('click',()=>{mode('3d');cam('fit')});$('#geoFind')?.addEventListener('click',()=>{A.address=$('#geoInput').value;$('#geoResult').textContent=A.address?'Endereço preparado para geocodificação: '+A.address:'Indique rua, número, código postal e localidade.'});$('#geoApply')?.addEventListener('click',()=>toast('Paisagem aplicada ao projeto. A localização real será resolvida quando a app estiver publicada com serviço de mapas.'));$('#profileSel')?.addEventListener('change',e=>A.profile=e.target.value);$('#trackSel')?.addEventListener('change',e=>A.track=e.target.value);$('#applyProfiles')?.addEventListener('click',()=>{A.shapes.filter(s=>A.selected.includes(s.id)).forEach(s=>s.profile=A.profile);toast('Perfil aplicado à seleção.');render()});$('#genLSF')?.addEventListener('click',()=>{A.shapes.filter(closed).forEach(s=>{if(!s.height)s.height=2.70});mode('3d');toast('Estrutura LSF gerada.');render()});$('#genCSV')?.addEventListener('click',exportCSV);$('#toggleMulti')?.addEventListener('click',()=>{A.multi=!A.multi;renderPanel()});
-$('#clearSel')?.addEventListener('click',()=>{A.selected=[];render()});
-$('#applyFilter')?.addEventListener('click',()=>{
-  const type=$('#filterType')?.value||'all', profile=$('#filterProfile')?.value||'all';
-  A.selected=A.shapes.filter(s=>(type==='all'||s.type===type)&&(profile==='all'||s.profile===profile)).map(s=>s.id);
-  toast(A.selected.length+' objeto(s) selecionado(s) pelo filtro.'); render();
-});$('#makeSheet')?.addEventListener('click',()=>openModal('Folha de painel','Folha preparada com cotas, lista de perfis, guias, montantes e referências. A exportação PDF/DXF será acrescentada no módulo de documentação.'));}
-$$('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-function openModal(t,txt){$('#modalTitle').textContent=t;$('#modalText').textContent=txt;$('#modal').classList.add('show')}$('#modalCancel').onclick=()=>$('#modal').classList.remove('show');$('#modalOk').onclick=()=>$('#modal').classList.remove('show');
-$$('[data-menu]').forEach(b=>b.onclick=()=>{let m=b.dataset.menu;if(m==='new'){A.shapes=[];A.selected=[];toast('Novo projeto criado.');render()}else if(m==='save')toast('Projeto guardado localmente neste navegador.');else if(m==='location')setTab('geolocation');else if(m==='export')setTab('lsf');else if(m==='print')openModal('Imprimir','A impressão técnica será enviada pela folha de painel.');else toast(`${b.textContent} preparado na aplicação.`)});
-// Start with sample so 3D immediately shows a coherent model, not an empty canvas.
-newShape({type:'rect',a:{x:310,y:250},b:{x:670,y:480},height:2.70,name:'P01 — Volume principal'});newShape({type:'rect',a:{x:420,y:330},b:{x:540,y:430},height:0,name:'Abertura / divisão'});A.selected=[];renderPanel();setTool('select');
-})();
-</script></body></html>
+    <main class="layout">
+      <aside class="left-rail" aria-label="Ferramentas laterais">
+        <button class="rail-button is-active" data-tool="select"><span>⌖</span><small>Selecionar</small></button>
+        <button class="rail-button" data-tool="line"><span>╱</span><small>Linha</small></button>
+        <button class="rail-button" data-tool="rect"><span>▭</span><small>Retângulo</small></button>
+        <button class="rail-button" data-tool="polygon"><span>⬠</span><small>Polígono</small></button>
+        <button class="rail-button" data-tool="circle"><span>◯</span><small>Círculo</small></button>
+        <button class="rail-button" data-tool="arc"><span>◠</span><small>Arco</small></button>
+        <button class="rail-button" data-tool="lasso"><span>◌</span><small>Laço</small></button>
+        <button class="rail-button" data-tool="move"><span>✥</span><small>Mover</small></button>
+        <button class="rail-button" data-tool="orbit"><span>◉</span><small>Órbita</small></button>
+        <button class="rail-button" data-tool="delete"><span>⌫</span><small>Apagar</small></button>
+      </aside>
+
+      <section class="work-area">
+        <div class="view-badge" id="viewBadge">Vista 2D — Planta</div>
+        <div class="view-toggle" aria-label="Alternar vista">
+          <button id="view2D" class="is-active">2D</button>
+          <button id="view3D">3D</button>
+        </div>
+
+        <div id="stage2D" class="stage stage-2d">
+          <svg id="svgCanvas" viewBox="0 0 1200 760" role="application" aria-label="Área de desenho 2D"></svg>
+        </div>
+        <div id="stage3D" class="stage stage-3d is-hidden"></div>
+
+        <div class="layers-card">
+          <div class="layers-title">Camadas</div>
+          <label><input type="checkbox" data-layer="architecture" checked /> Arquitetura</label>
+          <label><input type="checkbox" data-layer="lsf" checked /> Estrutura LSF</label>
+          <label><input type="checkbox" data-layer="labels" checked /> Etiquetas</label>
+          <label><input type="checkbox" data-layer="ground" checked /> Terreno</label>
+        </div>
+
+        <div class="move-card is-hidden" id="moveCard">
+          <div class="move-card-title">Mover seleção</div>
+          <label>Passo
+            <select id="moveStep">
+              <option value="0.01">10 mm</option>
+              <option value="0.05">50 mm</option>
+              <option value="0.1" selected>100 mm</option>
+              <option value="0.5">500 mm</option>
+            </select>
+          </label>
+          <div class="move-grid">
+            <button data-move="y+">↑</button>
+            <button data-move="z+" class="z">+Z</button>
+            <button data-move="y-">↓</button>
+            <button data-move="x-">←</button>
+            <button data-move="center">◎</button>
+            <button data-move="x+">→</button>
+            <button data-move="z-" class="z">−Z</button>
+          </div>
+        </div>
+
+        <div id="toast" class="toast is-hidden"></div>
+      </section>
+
+      <aside class="right-panel" id="rightPanel">
+        <div class="right-panel-head">
+          <strong>Aloe LSF 360</strong>
+          <button id="closePanel" aria-label="Fechar painel">×</button>
+        </div>
+        <div class="tabs" id="tabs">
+          <button class="tab is-active" data-tab="entity">Entidade</button>
+          <button class="tab" data-tab="selection">Seleção</button>
+          <button class="tab" data-tab="profiles">Perfis</button>
+          <button class="tab" data-tab="geo">Geolocalização</button>
+          <button class="tab" data-tab="csv">CSV</button>
+        </div>
+        <div id="panelContent" class="panel-content"></div>
+      </aside>
+    </main>
+
+    <footer class="statusbar">
+      <span id="coords">X: 0.000 · Y: 0.000 · Z: 0.000</span>
+      <span id="toolState">Ferramenta: Selecionar</span>
+      <span id="selectionState">Nenhum objeto selecionado.</span>
+    </footer>
+  </div>
+
+  <input id="fileInput" type="file" accept="application/json" hidden />
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/examples/js/controls/TransformControls.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
