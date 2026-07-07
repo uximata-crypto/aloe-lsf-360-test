@@ -1,141 +1,112 @@
 <!doctype html>
 <html lang="pt-PT">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#073d5b" />
-  <title>Aloe LSF 360 — Teste Render 3D Estável</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aloe LSF 360 — Desenho 3D</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="header">
-      <div class="brand" aria-label="Aloe LSF 360">
-        <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M32 59C18 51 10 41 10 28C10 17 19 8 32 5C45 8 54 17 54 28C54 41 46 51 32 59Z" fill="#159447"/>
-          <path d="M32 12v38M18 24l14 10m14-10-14 10M18 37l14 9m14-9-14 9" fill="none" stroke="#eaf7ed" stroke-width="3" stroke-linecap="round"/>
-        </svg>
-        <div>
-          <div class="brand-title">Aloe <span>LSF 360</span></div>
-          <div class="brand-subtitle">Arquitetura · Estrutura · Fabrico</div>
-        </div>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/aloe-lsf-360-logo.svg" alt="Aloe LSF 360">
+      <div>
+        <strong>Aloe <span>LSF 360</span></strong>
+        <small>Arquitetura · Estrutura · Fabrico</small>
       </div>
-      <nav class="main-menu" aria-label="Menu principal">
-        <button data-menu="new">Novo</button>
-        <button data-menu="open">Abrir</button>
-        <button data-menu="save">Salvar como</button>
-        <button data-menu="import">Importar</button>
-        <button data-menu="export">Exportar</button>
-        <button data-menu="location">Localização</button>
-        <button data-menu="print">Imprimir</button>
-      </nav>
-      <div class="header-actions">
-        <button class="header-pill" id="toggleView">2D / 3D</button>
-        <button class="header-pill" id="togglePanel">Painel</button>
-      </div>
-    </header>
+    </div>
+    <nav id="mainMenu">
+      <button data-action="new">Novo</button>
+      <button data-action="open">Abrir</button>
+      <button data-action="save">Salvar como</button>
+      <button data-action="import">Importar</button>
+      <button data-action="export">Exportar</button>
+      <button data-action="location">Localização</button>
+      <button data-action="print">Imprimir</button>
+    </nav>
+    <div class="header-actions">
+      <button class="pill" id="toggleMode">2D / 3D</button>
+      <button class="pill" id="togglePanel">Painel</button>
+    </div>
+  </header>
 
-    <section class="toolbar" aria-label="Ferramentas">
-      <button class="tool-button is-active" data-tool="select"><span>⌖</span>Selecionar</button>
-      <button class="tool-button" data-tool="line"><span>╱</span>Linha</button>
-      <button class="tool-button" data-tool="rect"><span>▭</span>Retângulo</button>
-      <button class="tool-button" data-tool="circle"><span>◯</span>Círculo</button>
-      <button class="tool-button" data-tool="arc"><span>◠</span>Arco</button>
-      <button class="tool-button" data-tool="polygon"><span>⬠</span>Polígono</button>
-      <button class="tool-button" data-tool="lasso"><span>◌</span>Laço</button>
-      <button class="tool-button" data-tool="pushpull"><span>↕</span>Empurrar/Puxar</button>
-      <button class="tool-button" data-tool="move"><span>✥</span>Mover</button>
-      <button class="tool-button" data-tool="rotate"><span>↻</span>Rodar</button>
-      <button class="tool-button" data-tool="orbit"><span>◉</span>Órbita</button>
-      <button class="tool-button danger" data-tool="delete"><span>⌫</span>Apagar</button>
-      <button class="tool-button green" id="generateLSF"><span>▦</span>Gerar LSF</button>
-      <button class="tool-button green" id="generateCSV"><span>CSV</span>Gerar CSV</button>
-      <button class="tool-button" id="fit3D"><span>◎</span>Ajustar 3D</button>
+  <section class="toolstrip" id="toolstrip">
+    <button class="tool active" data-tool="select"><b>⌖</b><span>Selecionar</span></button>
+    <button class="tool" data-tool="line"><b>╱</b><span>Linha</span></button>
+    <button class="tool" data-tool="rect"><b>▭</b><span>Retângulo</span></button>
+    <button class="tool" data-tool="circle"><b>◯</b><span>Círculo</span></button>
+    <button class="tool" data-tool="polygon"><b>⬠</b><span>Polígono</span></button>
+    <button class="tool" data-tool="push"><b>↕</b><span>Empurrar/Puxar</span></button>
+    <button class="tool" data-tool="move"><b>✥</b><span>Mover</span></button>
+    <button class="tool" data-tool="orbit"><b>◉</b><span>Órbita</span></button>
+    <button class="tool" data-tool="delete"><b>⌫</b><span>Apagar</span></button>
+    <button class="tool green" id="genLSF"><b>▦</b><span>Gerar LSF</span></button>
+    <button class="tool green" id="genCSV"><b>CSV</b><span>Gerar CSV</span></button>
+    <button class="tool" id="fitView"><b>◎</b><span>Ajustar 3D</span></button>
+  </section>
+
+  <main class="main">
+    <aside class="leftbar">
+      <button class="side active" data-tool="select">⌖<small>Selecionar</small></button>
+      <button class="side" data-tool="line">╱<small>Linha</small></button>
+      <button class="side" data-tool="rect">▭<small>Retângulo</small></button>
+      <button class="side" data-tool="circle">◯<small>Círculo</small></button>
+      <button class="side" data-tool="polygon">⬠<small>Polígono</small></button>
+      <button class="side" data-tool="push">↕<small>Empurrar</small></button>
+      <button class="side" data-tool="move">✥<small>Mover</small></button>
+      <button class="side" data-tool="orbit">◉<small>Órbita</small></button>
+      <button class="side" data-tool="delete">⌫<small>Apagar</small></button>
+    </aside>
+
+    <section class="workspace">
+      <div class="canvas-top">
+        <span id="badge">Vista 3D — Desenho em planos</span>
+        <div class="mode-switch"><button id="b2">2D</button><button id="b3" class="active">3D</button></div>
+      </div>
+      <svg id="viewport" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Espaço de desenho 3D"></svg>
+      <div class="workplane-card">
+        <div class="card-title">Plano de desenho <span id="planeLabel">XY · Chão</span></div>
+        <div class="plane-buttons">
+          <button data-plane="XY" class="active">XY<br><small>Chão</small></button>
+          <button data-plane="XZ">XZ<br><small>Frontal</small></button>
+          <button data-plane="YZ">YZ<br><small>Lateral</small></button>
+          <button data-plane="FACE">Face<br><small>Selecionada</small></button>
+        </div>
+        <label>Elevação / deslocamento<input id="planeOffset" type="number" step="0.10" value="0.00"> m</label>
+      </div>
+      <div class="layers-card">
+        <div class="card-title">Camadas</div>
+        <label><input checked type="checkbox" data-layer="grid"> Grelha do plano</label>
+        <label><input checked type="checkbox" data-layer="shapes"> Desenho / volumes</label>
+        <label><input checked type="checkbox" data-layer="lsf"> Estrutura LSF</label>
+        <label><input checked type="checkbox" data-layer="labels"> Etiquetas</label>
+      </div>
+      <div class="hint" id="hint">Plano XY ativo. Escolha uma ferramenta e desenhe diretamente no espaço 3D.</div>
+      <div class="toast hidden" id="toast"></div>
     </section>
 
-    <main class="layout">
-      <aside class="left-rail" aria-label="Ferramentas laterais">
-        <button class="rail-button is-active" data-tool="select"><span>⌖</span><small>Selecionar</small></button>
-        <button class="rail-button" data-tool="line"><span>╱</span><small>Linha</small></button>
-        <button class="rail-button" data-tool="rect"><span>▭</span><small>Retângulo</small></button>
-        <button class="rail-button" data-tool="polygon"><span>⬠</span><small>Polígono</small></button>
-        <button class="rail-button" data-tool="circle"><span>◯</span><small>Círculo</small></button>
-        <button class="rail-button" data-tool="arc"><span>◠</span><small>Arco</small></button>
-        <button class="rail-button" data-tool="lasso"><span>◌</span><small>Laço</small></button>
-        <button class="rail-button" data-tool="move"><span>✥</span><small>Mover</small></button>
-        <button class="rail-button" data-tool="orbit"><span>◉</span><small>Órbita</small></button>
-        <button class="rail-button" data-tool="delete"><span>⌫</span><small>Apagar</small></button>
-      </aside>
+    <aside class="rightpanel" id="rightpanel">
+      <div class="panel-head"><strong>Aloe LSF 360</strong><button id="closePanel">×</button></div>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="entity">Entidade</button>
+        <button class="tab" data-tab="selection">Seleção</button>
+        <button class="tab" data-tab="profiles">Perfis</button>
+        <button class="tab" data-tab="geo">Geolocalização</button>
+        <button class="tab" data-tab="csv">CSV</button>
+      </div>
+      <div id="panelBody"></div>
+    </aside>
+  </main>
 
-      <section class="work-area">
-        <div class="view-badge" id="viewBadge">Vista 2D — Planta</div>
-        <div class="view-toggle" aria-label="Alternar vista">
-          <button id="view2D" class="is-active">2D</button>
-          <button id="view3D">3D</button>
-        </div>
-
-        <div id="stage2D" class="stage stage-2d">
-          <svg id="svgCanvas" viewBox="0 0 1200 760" role="application" aria-label="Área de desenho 2D"></svg>
-        </div>
-        <div id="stage3D" class="stage stage-3d is-hidden"></div>
-
-        <div class="layers-card">
-          <div class="layers-title">Camadas</div>
-          <label><input type="checkbox" data-layer="architecture" checked /> Arquitetura</label>
-          <label><input type="checkbox" data-layer="lsf" checked /> Estrutura LSF</label>
-          <label><input type="checkbox" data-layer="labels" checked /> Etiquetas</label>
-          <label><input type="checkbox" data-layer="ground" checked /> Terreno</label>
-        </div>
-
-        <div class="move-card is-hidden" id="moveCard">
-          <div class="move-card-title">Mover seleção</div>
-          <label>Passo
-            <select id="moveStep">
-              <option value="0.01">10 mm</option>
-              <option value="0.05">50 mm</option>
-              <option value="0.1" selected>100 mm</option>
-              <option value="0.5">500 mm</option>
-            </select>
-          </label>
-          <div class="move-grid">
-            <button data-move="y+">↑</button>
-            <button data-move="z+" class="z">+Z</button>
-            <button data-move="y-">↓</button>
-            <button data-move="x-">←</button>
-            <button data-move="center">◎</button>
-            <button data-move="x+">→</button>
-            <button data-move="z-" class="z">−Z</button>
-          </div>
-        </div>
-
-        <div id="toast" class="toast is-hidden"></div>
-      </section>
-
-      <aside class="right-panel" id="rightPanel">
-        <div class="right-panel-head">
-          <strong>Aloe LSF 360</strong>
-          <button id="closePanel" aria-label="Fechar painel">×</button>
-        </div>
-        <div class="tabs" id="tabs">
-          <button class="tab is-active" data-tab="entity">Entidade</button>
-          <button class="tab" data-tab="selection">Seleção</button>
-          <button class="tab" data-tab="profiles">Perfis</button>
-          <button class="tab" data-tab="geo">Geolocalização</button>
-          <button class="tab" data-tab="csv">CSV</button>
-        </div>
-        <div id="panelContent" class="panel-content"></div>
-      </aside>
-    </main>
-
-    <footer class="statusbar">
-      <span id="coords">X: 0.000 · Y: 0.000 · Z: 0.000</span>
-      <span id="toolState">Ferramenta: Selecionar</span>
-      <span id="selectionState">Nenhum objeto selecionado.</span>
-    </footer>
-  </div>
-
-  <input id="fileInput" type="file" accept="application/json" hidden />
-
-  <script src="app.js"></script>
+  <footer class="status">
+    <span id="coords">X: 0.000 · Y: 0.000 · Z: 0.000</span>
+    <span id="toolLabel">Ferramenta: Selecionar</span>
+    <span id="selectionLabel">Nenhum objeto selecionado.</span>
+  </footer>
+</div>
+<input id="fileInput" type="file" accept=".json" hidden>
+<script src="app.js"></script>
 </body>
 </html>

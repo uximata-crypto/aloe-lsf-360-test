@@ -1,16 +1,18 @@
-# Aloe LSF 360 — Teste Render 3D Estável
+# Aloe LSF 360 — Test Pack: Perfis 3D Realistas
 
-## Correção de renderização
-Esta versão substitui a projeção anterior por uma câmara em perspetiva própria, com:
-- duas direções de grelha no terreno;
-- prisma retangular com base, topo e faces laterais corretas;
-- profundidade e ordem de faces para não atravessar a geometria;
-- órbita horizontal contínua, inclinação vertical controlada e zoom;
-- elementos 2D fechados continuam visíveis no 3D mesmo antes de receberem altura;
-- retângulo inicial já com 2,70 m, para validar a vista 3D imediatamente.
+## Melhoria desta versão
+A estrutura LSF já não é desenhada apenas por linhas.
 
-## Teste
-1. Abra em 2D e veja o retângulo inicial.
-2. Carregue em 3D: o prisma deve aparecer de imediato.
-3. Selecione Órbita e arraste; use a roda do rato para zoom.
-4. Use Gerar LSF: os montantes/guias surgem sobre o volume e podem ser selecionados.
+Depois de clicar em **Gerar LSF**:
+
+- os **montantes** são mostrados como perfis **C**, com alma, abas e lábios;
+- as **guias** são mostradas como perfis **U**, com alma e abas;
+- as faces recebem tonalidades diferentes para dar leitura visual de aço galvanizado;
+- a seleção mantém-se por perfil individual e destaca a secção a laranja;
+- no separador **Perfis** há referências visuais C, U e L.
+
+## Limite técnico atual
+A representação é uma geometria visual simplificada de perfil de aço leve. As dimensões de aba, alma e lábio usadas são indicativas para visualização; o cálculo estrutural e os parâmetros de perfiladora continuam a exigir os dados reais de fabrico.
+
+## Upload
+Extraia o ZIP e substitua todos os ficheiros do repositório de testes, incluindo a pasta `assets`.

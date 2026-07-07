@@ -1,794 +1,263 @@
 (() => {
-  'use strict';
+"use strict";
+const svg=document.getElementById('viewport'), $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], ns='http://www.w3.org/2000/svg';
+const S={
+  tool:'select', mode:'3d', tab:'entity', activePlane:'XY', planeOffset:0,
+  shapes:[], profiles:[], selected:[], next:1, draft:null, polygon:[], lasso:null,
+  multi:false, layers:{grid:true,shapes:true,lsf:true,labels:true},
+  cam:{yaw:-0.72,pitch:0.58,zoom:1.0,panX:0,panY:0}, drag:null
+};
+function uid(p='O'){return p+(S.next++).toString().padStart(3,'0')}
+function n(v,d=2){return Number(v).toFixed(d)}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2500)}
+function toolName(t){return({select:'Selecionar',line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono',push:'Empurrar/Puxar',move:'Mover',orbit:'Órbita',delete:'Apagar'})[t]||t}
+function shapeName(k){return({line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono'})[k]||k}
+function item(id){return S.shapes.find(s=>s.id===id)||S.profiles.find(p=>p.id===id)}
+function items(){return [...S.shapes,...S.profiles]}
+function isClosed(s){return ['rect','circle','polygon'].includes(s.kind)}
+function viewportRect(){return svg.getBoundingClientRect()}
+function svgEl(type,attrs={}){const e=document.createElementNS(ns,type);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);return e}
+function clear(){while(svg.firstChild)svg.removeChild(svg.firstChild)}
+function center(){const r=viewportRect();return{x:r.width/2+S.cam.panX,y:r.height*.58+S.cam.panY}}
+function project(P){const c=center(),cy=Math.cos(S.cam.yaw),sy=Math.sin(S.cam.yaw),cp=Math.cos(S.cam.pitch),sp=Math.sin(S.cam.pitch);const X=P.x*cy-P.y*sy,Y=P.x*sy+P.y*cy;return{x:c.x+X*72*S.cam.zoom,y:c.y-(P.z*cp-Y*sp)*72*S.cam.zoom,depth:Y*cp+P.z*sp}}
+function planeCoordsFromScreen(pt,plane=S.activePlane,offset=S.planeOffset){
+  const c=center(),scale=72*S.cam.zoom,cy=Math.cos(S.cam.yaw),sy=Math.sin(S.cam.yaw),cp=Math.cos(S.cam.pitch),sp=Math.sin(S.cam.pitch);
+  const X=(pt.x-c.x)/scale, D=(c.y-pt.y)/scale;
+  const safe=(v)=>Math.abs(v)<.001?(v<0?-.001:.001):v;
+  if(plane==='XY'){
+    const Y=(cp*offset-D)/safe(sp); return {x:X*cy+Y*sy,y:-X*sy+Y*cy,z:offset};
+  }
+  if(plane==='XZ'){
+    const y=offset,x=(X+sy*y)/safe(cy),Y=x*sy+y*cy,z=(D+sp*Y)/safe(cp);return{x,y,z};
+  }
+  if(plane==='YZ'){
+    const x=offset,y=(cy*x-X)/safe(sy),Y=x*sy+y*cy,z=(D+sp*Y)/safe(cp);return{x,y,z};
+  }
+  return {x:0,y:0,z:0};
+}
+function localToWorld(plane,u,v,offset){
+  if(plane==='XY')return{x:u,y:v,z:offset};
+  if(plane==='XZ')return{x:u,y:offset,z:v};
+  if(plane==='YZ')return{x:offset,y:u,z:v};
+  return{x:u,y:v,z:offset};
+}
+function worldToLocal(plane,P){
+  if(plane==='XY')return{u:P.x,v:P.y};
+  if(plane==='XZ')return{u:P.x,v:P.z};
+  return{u:P.y,v:P.z};
+}
+function pointsOf(s){
+  if(s.kind==='rect'){
+    const {u1,v1,u2,v2,plane,offset}=s;
+    return [localToWorld(plane,u1,v1,offset),localToWorld(plane,u2,v1,offset),localToWorld(plane,u2,v2,offset),localToWorld(plane,u1,v2,offset)];
+  }
+  if(s.kind==='circle'){
+    const pts=[];for(let i=0;i<48;i++){const a=i/48*Math.PI*2;pts.push(localToWorld(s.plane,s.u+Math.cos(a)*s.r,s.v+Math.sin(a)*s.r,s.offset))}return pts;
+  }
+  if(s.kind==='polygon')return s.points;
+  if(s.kind==='line')return [s.a,s.b];
+  return [];
+}
+function normalOf(s){
+  const sign=s.normalSign||1;
+  return s.plane==='XY'?{x:0,y:0,z:sign}:s.plane==='XZ'?{x:0,y:sign,z:0}:{x:sign,y:0,z:0};
+}
+function extrudedFaces(s){
+  const base=pointsOf(s),h=s.height||0;if(!isClosed(s)||h<=.001)return[];
+  const no=normalOf(s),top=base.map(p=>({x:p.x+no.x*h,y:p.y+no.y*h,z:p.z+no.z*h}));
+  const faces=[];for(let i=0;i<base.length;i++){const j=(i+1)%base.length;faces.push({pts:[base[i],base[j],top[j],top[i]],type:'side'})}faces.push({pts:top,type:'top'});return faces;
+}
+function depth(face){return face.pts.reduce((a,p)=>a+project(p).depth,0)/face.pts.length}
+function addPolygon(pts,cls,id){const q=pts.map(project),e=svgEl('polygon',{points:q.map(p=>p.x+','+p.y).join(' '),class:cls,'data-id':id});svg.append(e);return e}
+function addLine(a,b,cls,id){const A=project(a),B=project(b),e=svgEl('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,class:cls,'data-id':id});svg.append(e);return e}
+function addText(P,text,selected=false){if(!S.layers.labels)return;const q=project(P),t=svgEl('text',{x:q.x+7,y:q.y-7,class:'shape-label'+(selected?' selected':'')});t.textContent=text;svg.append(t)}
+function gridPlane(){
+  if(!S.layers.grid)return;
+  const size=11,step=.5,off=S.planeOffset,plane=S.activePlane;
+  for(let i=-size;i<=size;i+=step){
+    const major=Math.abs(i%2)<.001;
+    const a=localToWorld(plane,-size,i,off),b=localToWorld(plane,size,i,off),c=localToWorld(plane,i,-size,off),d=localToWorld(plane,i,size,off);
+    addLine(a,b,'grid-line','');addLine(c,d,'grid-line','');
+  }
+  addLine({x:-7,y:0,z:0},{x:7,y:0,z:0},'axis-x','');
+  addLine({x:0,y:-7,z:0},{x:0,y:7,z:0},'axis-y','');
+  addLine({x:0,y:0,z:0},{x:0,y:0,z:5},'axis-z','');
+}
+function drawShape(s,preview=false){
+  const selected=S.selected.includes(s.id), cls=preview?'draw-preview':(selected?'shape-face selected':'shape-face');
+  const base=pointsOf(s);
+  if(S.mode==='2d'){
+    const map=(p)=>{const l=worldToLocal('XY',p);return{x:l.u*72+560,y:430-l.v*72}};
+    if(s.kind==='line'){const a=map(base[0]),b=map(base[1]);const e=svgEl('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:selected?'shape-edge selected':'shape-edge','data-id':s.id||''});svg.append(e);return}
+    const pts=base.map(map);const e=svgEl(s.kind==='circle'?'polygon':'polygon',{points:pts.map(p=>p.x+','+p.y).join(' '),class:cls,'data-id':s.id||''});svg.append(e);return;
+  }
+  if(!s.height||s.height<=.001){
+    if(s.kind==='line')addLine(base[0],base[1],selected?'shape-edge selected':'shape-edge',s.id||'');
+    else addPolygon(base,preview?'draw-preview':(selected?'shape-face selected':'shape-face'),s.id||'');
+  }else{
+    extrudedFaces(s).sort((a,b)=>depth(a)-depth(b)).forEach(f=>addPolygon(f.pts,selected?'shape-face selected':'shape-face',s.id||''));
+  }
+  if(!preview&&base.length)addText(base.reduce((a,p)=>({x:a.x+p.x/base.length,y:a.y+p.y/base.length,z:a.z+p.z/base.length}),{x:0,y:0,z:0}),s.name+(s.height?` · ${n(s.height)} m`:''),selected);
+}
 
-  const svg = document.getElementById('svgCanvas');
-  const $ = (s) => document.querySelector(s);
-  const $$ = (s) => [...document.querySelectorAll(s)];
-  const NS = 'http://www.w3.org/2000/svg';
-  const PX_PER_M = 70;
-
-  const state = {
-    tool: 'select',
-    view: '2d',
-    tab: 'entity',
-    shapes: [],
-    profiles: [],
-    selected: [],
-    draft: null,
-    polygon: [],
-    arcPoints: [],
-    lasso: null,
-    multi: false,
-    nextId: 1,
-    layers: { architecture: true, lsf: true, labels: true, ground: true },
-    currentHeight: 2.70,
-    geo: { street: '', postcode: '', place: '' },
-    cameraYaw: -0.72, cameraPitch: 0.48, cameraZoom: 1, cameraPanX: 0, cameraPanY: 0, cameraDistance: 15, cameraTarget: {x:0,y:0,z:1.35}, pushDrag: null
+function vAdd(a,b){return{x:a.x+b.x,y:a.y+b.y,z:a.z+b.z}}
+function vSub(a,b){return{x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}}
+function vMul(a,k){return{x:a.x*k,y:a.y*k,z:a.z*k}}
+function vLen(a){return Math.hypot(a.x,a.y,a.z)}
+function vNorm(a){const l=vLen(a)||1;return{x:a.x/l,y:a.y/l,z:a.z/l}}
+function vCross(a,b){return{x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x}}
+function vPoint(a,axis,side,normal,t,s,n){return vAdd(a,vAdd(vMul(axis,t),vAdd(vMul(side,s),vMul(normal,n))))}
+function profileMidpoint(p){return{x:(p.a.x+p.b.x)/2,y:(p.a.y+p.b.y)/2,z:(p.a.z+p.b.z)/2}}
+function profileFaces(p){
+  const axis=vNorm(vSub(p.b,p.a));
+  let normal=vNorm(p.normal||{x:0,y:1,z:0});
+  let side=vNorm(vCross(axis,normal));
+  // Fallback for profiles parallel to the supplied normal.
+  if(vLen(side)<0.1){normal={x:0,y:0,z:1};side=vNorm(vCross(axis,normal))}
+  const width=p.width||0.090, depth=p.depth||0.040, lip=p.lip||0.014;
+  const a=p.a,b=p.b, faces=[];
+  const strip=(s1,n1,s2,n2,style)=>{
+    const q1=vPoint(a,axis,side,normal,0,s1,n1);
+    const q2=vPoint(a,axis,side,normal,0,s2,n2);
+    const q3=vPoint(b,axis,side,normal,0,s2,n2);
+    const q4=vPoint(b,axis,side,normal,0,s1,n1);
+    faces.push({pts:[q1,q2,q3,q4],style});
   };
-
-  let scene;
-  let renderer;
-  let camera;
-  let orbit;
-  let transform;
-  let raycaster;
-  let mouse;
-  let threeObjects = new Map();
-
-  const createSvg = (tag, attrs = {}) => {
-    const node = document.createElementNS(NS, tag);
-    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
-    return node;
-  };
-
-  const uid = (prefix = 'O') => `${prefix}${String(state.nextId++).padStart(3, '0')}`;
-  const shapeName = (kind) => ({ line: 'Linha', rect: 'Retângulo', circle: 'Círculo', arc: 'Arco', polygon: 'Polígono' }[kind] || kind);
-  const isClosed = (shape) => ['rect', 'circle', 'polygon'].includes(shape.kind);
-  const allItems = () => [...state.shapes, ...state.profiles];
-  const getItem = (id) => allItems().find((item) => item.id === id);
-
-  function toast(message) {
-    const element = $('#toast');
-    element.textContent = message;
-    element.classList.remove('is-hidden');
-    clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => element.classList.add('is-hidden'), 2400);
+  // Web and flanges: true open section rather than a simple visual line.
+  strip(-width/2,-depth/2,width/2,-depth/2,'web');
+  strip(-width/2,-depth/2,-width/2,depth/2,'flange');
+  strip(width/2,-depth/2,width/2,depth/2,'flange');
+  // C profiles have return lips. U profiles remain open.
+  if((p.section||'C')==='C'){
+    strip(-width/2,depth/2,-width/2+lip,depth/2,'lip');
+    strip(width/2,depth/2,width/2-lip,depth/2,'lip');
   }
-
-  function setStatus(message) {
-    $('#selectionState').textContent = message;
-  }
-
-  function updateToolUI() {
-    $$('[data-tool]').forEach((button) => button.classList.toggle('is-active', button.dataset.tool === state.tool));
-    $('#toolState').textContent = `Ferramenta: ${shapeName(state.tool)}`;
-    $('#moveCard').classList.toggle('is-hidden', state.tool !== 'move');
-  }
-
-  function setTool(tool) {
-    state.tool = tool;
-    updateToolUI();
-    if (tool === 'orbit' && state.view !== '3d') switchView('3d');
-    if (tool === 'delete') toast('Clique num objeto para apagar ou selecione e use Delete.');
-    if (tool === 'pushpull') toast('Empurrar/Puxar: clique numa face e arraste o rato para cima ou para baixo.');
-  }
-
-  function svgPoint(event) {
-    const rect = svg.getBoundingClientRect();
-    const x = (event.clientX - rect.left) * 1200 / rect.width;
-    const y = (event.clientY - rect.top) * 760 / rect.height;
-    return snap({ x, y });
-  }
-
-  function snap(point) {
-    return { x: Math.round(point.x / 10) * 10, y: Math.round(point.y / 10) * 10 };
-  }
-
-  function bounds(shape) {
-    if (shape.kind === 'rect') {
-      return { x: Math.min(shape.a.x, shape.b.x), y: Math.min(shape.a.y, shape.b.y), w: Math.abs(shape.b.x - shape.a.x), h: Math.abs(shape.b.y - shape.a.y) };
-    }
-    if (shape.kind === 'circle') return { x: shape.c.x - shape.r, y: shape.c.y - shape.r, w: shape.r * 2, h: shape.r * 2 };
-    if (shape.kind === 'polygon') {
-      const xs = shape.points.map((p) => p.x);
-      const ys = shape.points.map((p) => p.y);
-      return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
-    }
-    if (shape.kind === 'line') return { x: Math.min(shape.a.x, shape.b.x), y: Math.min(shape.a.y, shape.b.y), w: Math.abs(shape.b.x - shape.a.x), h: Math.abs(shape.b.y - shape.a.y) };
-    return { x: 0, y: 0, w: 0, h: 0 };
-  }
-
-  function shapePoints(shape) {
-    if (shape.kind === 'rect') {
-      const b = bounds(shape);
-      return [{ x: b.x, y: b.y }, { x: b.x + b.w, y: b.y }, { x: b.x + b.w, y: b.y + b.h }, { x: b.x, y: b.y + b.h }];
-    }
-    if (shape.kind === 'circle') {
-      return Array.from({ length: 48 }, (_, i) => {
-        const angle = i / 48 * Math.PI * 2;
-        return { x: shape.c.x + Math.cos(angle) * shape.r, y: shape.c.y + Math.sin(angle) * shape.r };
-      });
-    }
-    if (shape.kind === 'polygon') return shape.points;
-    return [];
-  }
-
-  function clearSvg() {
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-  }
-
-  function drawGrid() {
-    const defs = createSvg('defs');
-    const pattern = createSvg('pattern', { id: 'grid', width: '44', height: '44', patternUnits: 'userSpaceOnUse' });
-    pattern.appendChild(createSvg('path', { d: 'M 44 0 L 0 0 0 44', fill: 'none', stroke: '#d8e6e9', 'stroke-width': '1' }));
-    defs.appendChild(pattern);
-    svg.appendChild(defs);
-    svg.appendChild(createSvg('rect', { width: '1200', height: '760', fill: 'url(#grid)' }));
-    svg.appendChild(createSvg('line', { x1: '0', y1: '545', x2: '1200', y2: '545', class: 'axis-y' }));
-    svg.appendChild(createSvg('line', { x1: '205', y1: '0', x2: '205', y2: '760', class: 'axis-x' }));
-  }
-
-  function arcPath(shape) {
-    const start = { x: shape.c.x + Math.cos(shape.a0) * shape.r, y: shape.c.y + Math.sin(shape.a0) * shape.r };
-    const end = { x: shape.c.x + Math.cos(shape.a1) * shape.r, y: shape.c.y + Math.sin(shape.a1) * shape.r };
-    return `M ${start.x} ${start.y} A ${shape.r} ${shape.r} 0 0 ${shape.ccw ? 1 : 0} ${end.x} ${end.y}`;
-  }
-
-  function drawShape2D(shape, preview = false) {
-    let node;
-    if (shape.kind === 'line') node = createSvg('line', { x1: shape.a.x, y1: shape.a.y, x2: shape.b.x, y2: shape.b.y });
-    if (shape.kind === 'rect') {
-      const b = bounds(shape);
-      node = createSvg('rect', { x: b.x, y: b.y, width: b.w, height: b.h });
-    }
-    if (shape.kind === 'circle') node = createSvg('circle', { cx: shape.c.x, cy: shape.c.y, r: shape.r });
-    if (shape.kind === 'polygon') node = createSvg('polygon', { points: shape.points.map((p) => `${p.x},${p.y}`).join(' ') });
-    if (shape.kind === 'arc') node = createSvg('path', { d: arcPath(shape), fill: 'none' });
-    if (!node) return;
-    node.classList.add('shape');
-    if (preview) node.classList.add('is-preview');
-    if (state.selected.includes(shape.id)) node.classList.add('is-selected');
-    if (shape.id) node.dataset.id = shape.id;
-    svg.appendChild(node);
-
-    if (!preview && state.layers.labels && shape.name) {
-      const b = bounds(shape);
-      const label = createSvg('text', { x: b.x + b.w / 2 + 7, y: b.y + b.h / 2 - 7, class: `label ${state.selected.includes(shape.id) ? 'is-selected' : ''}` });
-      label.textContent = shape.name;
-      svg.appendChild(label);
-    }
-  }
-
-  function drawProfile2D(profile) {
-    const line = createSvg('line', { x1: profile.a.x, y1: profile.a.y, x2: profile.b.x, y2: profile.b.y, class: `profile ${state.selected.includes(profile.id) ? 'is-selected' : ''}` });
-    line.dataset.id = profile.id;
-    svg.appendChild(line);
-    if (state.selected.includes(profile.id)) {
-      [profile.a, profile.b].forEach((point) => svg.appendChild(createSvg('circle', { cx: point.x, cy: point.y, r: 5, class: 'profile-node' })));
-    }
-  }
-
-  function render2D() {
-    clearSvg();
-    drawGrid();
-    if (state.layers.architecture) state.shapes.forEach((shape) => drawShape2D(shape));
-    if (state.draft) drawShape2D(state.draft, true);
-    if (state.polygon.length) {
-      svg.appendChild(createSvg('polyline', { points: state.polygon.map((p) => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: '#159447', 'stroke-width': '2', 'stroke-dasharray': '6 4' }));
-    }
-    if (state.lasso) {
-      const b = makeBox(state.lasso.a, state.lasso.b);
-      svg.appendChild(createSvg('rect', { x: b.x, y: b.y, width: b.w, height: b.h, class: 'lasso' }));
-    }
-    if (state.layers.lsf) state.profiles.forEach(drawProfile2D);
-  }
-
-  function makeBox(a, b) {
-    return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
-  }
-
-  function addShape(shape) {
-    shape.id = uid();
-    shape.name = `${shapeName(shape.kind)} ${state.shapes.length + 1}`;
-    shape.height = Number(shape.height || 0);
-    shape.elevation = Number(shape.elevation || 0);
-    state.shapes.push(shape);
-    state.draft = null;
-    render2D();
-    renderPanel();
-    toast(`${shape.name} fixado.`);
-  }
-
-  function selectItem(item, append = false) {
-    if (!item) {
-      if (!append) state.selected = [];
-      setStatus('Nenhum objeto selecionado.');
-      renderCurrent();
-      renderPanel();
-      return;
-    }
-    if (append || state.multi) {
-      state.selected = state.selected.includes(item.id) ? state.selected.filter((id) => id !== item.id) : [...state.selected, item.id];
-    } else {
-      state.selected = [item.id];
-    }
-    setStatus(`${state.selected.length} elemento(s) selecionado(s): ${item.name}.`);
-    renderCurrent();
-    renderPanel();
-  }
-
-  function parentIdFromTarget(target) {
-    let current = target;
-    while (current && current !== svg) {
-      if (current.dataset?.id) return current.dataset.id;
-      current = current.parentNode;
-    }
-    return null;
-  }
-
-  function handle2DDown(event) {
-    const point = svgPoint(event);
-    updateCoords(point.x, point.y, 0);
-    const id = parentIdFromTarget(event.target);
-    const hit = id ? getItem(id) : null;
-
-    if (state.view === '3d') {
-      if (state.tool === 'orbit') {
-        state.orbitDrag = { x: event.clientX, y: event.clientY, yaw: state.cameraYaw, pitch: state.cameraPitch };
-        return;
-      }
-      if (state.tool === 'select') { selectItem(hit, event.ctrlKey || event.metaKey); return; }
-      if (state.tool === 'delete') { if (hit) { selectItem(hit, false); deleteSelected(); } return; }
-      if (state.tool === 'move') { if (hit) { selectItem(hit, event.ctrlKey || event.metaKey); state.moveDrag = { x:event.clientX,y:event.clientY }; } return; }
-      if (state.tool === 'rotate') { if (hit) { selectItem(hit,false); state.rotateDrag={x:event.clientX,y:event.clientY}; } return; }
-      if (state.tool === 'pushpull') {
-        if (hit && isClosed(hit)) {
-          beginPushPull(hit, event);
-        } else {
-          toast('Clique numa face fechada: retângulo, círculo ou polígono.');
-        }
-        return;
-      }
-      return;
-    }
-
-    if (state.tool === 'select') { selectItem(hit, event.ctrlKey || event.metaKey); return; }
-    if (state.tool === 'delete') { if (hit) { selectItem(hit, false); deleteSelected(); } return; }
-    if (state.tool === 'lasso') { state.lasso = { a: point, b: point }; return; }
-    if (['line', 'rect', 'circle'].includes(state.tool)) { state.draft = state.tool === 'circle' ? { kind:'circle', c:point, r:0 } : { kind:state.tool, a:point, b:point }; render2D(); return; }
-    if (state.tool === 'polygon') { state.polygon.push(point); render2D(); return; }
-    if (state.tool === 'arc') { state.arcPoints.push(point); if(state.arcPoints.length===3){ const [c,a,b]=state.arcPoints; addShape({kind:'arc',c,r:Math.hypot(a.x-c.x,a.y-c.y),a0:Math.atan2(a.y-c.y,a.x-c.x),a1:Math.atan2(b.y-c.y,b.x-c.x),ccw:false}); state.arcPoints=[];} return; }
-    if (state.tool === 'pushpull') {
-      if (hit && isClosed(hit)) {
-        selectItem(hit,false);
-        switchView('3d');
-        beginPushPull(hit,event);
-      } else {
-        toast('Clique num retângulo, círculo ou polígono fechado antes de arrastar.');
-      }
-      return;
-    }
-  }
-
-  function handle2DMove(event) {
-    const point = svgPoint(event);
-    updateCoords(point.x, point.y, 0);
-    if (state.view === '3d') {
-      if (state.pushDrag) {
-        const item=getItem(state.pushDrag.id);
-        if (item) {
-          const delta=(state.pushDrag.startY-event.clientY)/150;
-          item.height=Math.max(.02,Math.round((state.pushDrag.startHeight+delta)*100)/100);
-          state.currentHeight=item.height;
-          setStatus(`Empurrar/Puxar ativo: ${item.name} · ${item.height.toFixed(2)} m. Largue o rato para fixar.`);
-          render3D();
-        }
-        return;
-      }
-      if(state.orbitDrag){ state.cameraYaw=state.orbitDrag.yaw+(event.clientX-state.orbitDrag.x)*.010; state.cameraPitch=Math.max(-1.15,Math.min(1.15,state.orbitDrag.pitch+(event.clientY-state.orbitDrag.y)*.008));render3D(); }
-      if(state.moveDrag && state.selected.length){ const dx=(event.clientX-state.moveDrag.x)/70,dy=-(event.clientY-state.moveDrag.y)/70; moveItemsDirect(dx,dy,0);state.moveDrag={x:event.clientX,y:event.clientY};render3D(); }
-      if(state.rotateDrag && state.selected.length){ const da=(event.clientX-state.rotateDrag.x)*0.01; rotateSelected(da);state.rotateDrag={x:event.clientX,y:event.clientY};render3D(); }
-      return;
-    }
-    if (state.draft) { if (state.draft.kind === 'circle') state.draft.r = Math.hypot(point.x - state.draft.c.x, point.y - state.draft.c.y); else state.draft.b = point; render2D(); }
-    if (state.lasso) { state.lasso.b = point; render2D(); }
-  }
-
-  function handle2DUp(event) {
-    const point = svgPoint(event);
-    if(state.view==='3d'){
-      if(state.pushDrag){
-        const item=getItem(state.pushDrag.id);
-        if(item){
-          state.currentHeight=item.height;
-          setStatus(`Altura fixada: ${item.name} · ${item.height.toFixed(2)} m.`);
-          toast(`Altura fixada em ${item.height.toFixed(2)} m.`);
-        }
-        state.pushDrag=null;
-        renderPanel();
-      }
-      state.orbitDrag=null;state.moveDrag=null;state.rotateDrag=null;return;
-    }
-    if (state.draft) { const draft = state.draft; if (draft.kind === 'circle') { if (draft.r > 7) addShape(draft); } else if (Math.hypot(point.x-draft.a.x,point.y-draft.a.y)>7) addShape(draft); state.draft=null; }
-    if (state.lasso) { const b=makeBox(state.lasso.a,state.lasso.b);state.selected=state.shapes.filter(shape=>{const q=bounds(shape);return q.x>=b.x&&q.y>=b.y&&q.x+q.w<=b.x+b.w&&q.y+q.h<=b.y+b.h;}).map(shape=>shape.id);state.lasso=null;setStatus(`${state.selected.length} objeto(s) selecionado(s) por laço.`);render2D();renderPanel(); }
-  }
-
-  svg.addEventListener('pointerdown', handle2DDown);
-  svg.addEventListener('pointermove', handle2DMove);
-  svg.addEventListener('pointerup', handle2DUp);
-  svg.addEventListener('wheel',(event)=>{ if(state.view==='3d'){event.preventDefault();state.cameraZoom=Math.max(.28,Math.min(2.8,state.cameraZoom*(event.deltaY<0?1.10:.90)));render3D();} },{passive:false});
-
-  function beginPushPull(item,event){
-    if(!item || !isClosed(item)) return;
-    selectItem(item,false);
-    // A altura começa na atual; se for uma planta sem volume, começa no plano e sobe com o arrasto.
-    const initial=Math.max(0,Number(item.height||0));
-    state.pushDrag={id:item.id,startY:event.clientY,startHeight:initial};
-    setStatus(`Empurrar/Puxar: arraste o rato para cima para aumentar e para baixo para reduzir. Altura: ${initial.toFixed(2)} m.`);
-    toast('Arraste verticalmente sobre a vista 3D. Largue para fixar a altura.');
-    render3D();
-  }
-
-  function drawPushPullHandle(shape){
-    if(state.tool!=='pushpull' || !state.selected.includes(shape.id)) return;
-    const topZ=(shape.elevation||0)+(shape.height||0);
-    const world=shapePoints(shape).map(p=>worldPoint(p,topZ));
-    if(!world.length)return;
-    const c=project3(centroid(world));
-    const end={x:c.x,y:c.y-62};
-    const handle=addLine(c,end,shape.id,'#159447',4,true);
-    handle.classList.add('push-handle');
-    svg.appendChild(handle);
-    const arrow=createSvg('polygon',{points:`${end.x},${end.y-12} ${end.x-9},${end.y+6} ${end.x+9},${end.y+6}`,fill:'#159447'});
-    arrow.dataset.id=shape.id;arrow.classList.add('push-arrow');svg.appendChild(arrow);
-    const label=createSvg('text',{x:end.x+13,y:end.y-2,class:'push-label'});
-    label.textContent=`${(shape.height||0).toFixed(2)} m`;
-    svg.appendChild(label);
-  }
-
-  // Renderizador 3D próprio — geometria e perspetiva reais, sem dependências externas.
-  function renderCurrent(){ if(state.view==='3d') render3D(); else render2D(); }
-
-  function worldPoint(point, z = 0){
-    return { x:(point.x-600)/PX_PER_M, y:(410-point.y)/PX_PER_M, z };
-  }
-  function vSub(a,b){return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z};}
-  function vAdd(a,b){return {x:a.x+b.x,y:a.y+b.y,z:a.z+b.z};}
-  function vMul(a,s){return {x:a.x*s,y:a.y*s,z:a.z*s};}
-  function dot(a,b){return a.x*b.x+a.y*b.y+a.z*b.z;}
-  function cross(a,b){return {x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x};}
-  function norm(a){const l=Math.hypot(a.x,a.y,a.z)||1;return {x:a.x/l,y:a.y/l,z:a.z/l};}
-  function centroid(points){const n=points.length||1;return points.reduce((s,p)=>vAdd(s,p),{x:0,y:0,z:0});}
-  function modelBounds(){
-    const all=[];
-    state.shapes.filter(isClosed).forEach(s=>{
-      const z0=s.elevation||0, z1=z0+(s.height||0);
-      shapePoints(s).forEach(p=>{all.push(worldPoint(p,z0),worldPoint(p,z1));});
-    });
-    state.profiles.forEach(p=>{all.push(worldPoint(p.a,p.z0),worldPoint(p.b,p.z1));});
-    if(!all.length)return {min:{x:-4,y:-3,z:0},max:{x:4,y:3,z:3}};
-    return {min:{x:Math.min(...all.map(p=>p.x)),y:Math.min(...all.map(p=>p.y)),z:Math.min(...all.map(p=>p.z))},max:{x:Math.max(...all.map(p=>p.x)),y:Math.max(...all.map(p=>p.y)),z:Math.max(...all.map(p=>p.z))}};
-  }
-  function updateCameraTarget(){
-    const b=modelBounds();
-    state.cameraTarget={x:(b.min.x+b.max.x)/2,y:(b.min.y+b.max.y)/2,z:(b.min.z+b.max.z)/2};
-    const diag=Math.hypot(b.max.x-b.min.x,b.max.y-b.min.y,b.max.z-b.min.z)||8;
-    state.cameraDistance=Math.max(8,diag*1.85);
-  }
-  function cameraBasis(){
-    const t=state.cameraTarget||{x:0,y:0,z:1.35};
-    const yaw=state.cameraYaw, pitch=state.cameraPitch, d=state.cameraDistance/(state.cameraZoom||1);
-    const pos={x:t.x+d*Math.cos(pitch)*Math.cos(yaw),y:t.y+d*Math.cos(pitch)*Math.sin(yaw),z:t.z+d*Math.sin(pitch)};
-    const forward=norm(vSub(t,pos));
-    let right=norm(cross(forward,{x:0,y:0,z:1}));
-    if(Math.hypot(right.x,right.y,right.z)<.01)right={x:1,y:0,z:0};
-    const up=norm(cross(right,forward));
-    return {pos,forward,right,up};
-  }
-  function project3(world){
-    const r=svg.getBoundingClientRect(), w=1200, h=760;
-    const cam=cameraBasis();
-    const rel=vSub(world,cam.pos);
-    const depth=dot(rel,cam.forward);
-    const focal=760;
-    const safe=Math.max(.20,depth);
-    return {x:w/2+(dot(rel,cam.right)*focal/safe)+(state.cameraPanX||0),y:h*.56-(dot(rel,cam.up)*focal/safe)+(state.cameraPanY||0),depth,safe};
-  }
-  function addPoly(points, id, fill, stroke, selected, depth){
-    const n=createSvg('polygon',{points:points.map(p=>`${p.x},${p.y}`).join(' '),fill,stroke,'stroke-width':selected?4:1.6,'stroke-linejoin':'round'});
-    n.classList.add('shape');
-    if(selected)n.classList.add('is-selected');
-    if(id)n.dataset.id=id;
-    n.dataset.depth=depth;
-    return n;
-  }
-  function addLine(a,b,id,stroke,width,selected){
-    const n=createSvg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke,'stroke-width':selected?width+2:width,'stroke-linecap':'round'});
-    n.classList.add('profile');
-    if(selected)n.classList.add('is-selected');
-    if(id)n.dataset.id=id;
-    return n;
-  }
-  function volumeFaces(shape){
-    const z0=shape.elevation||0, z1=z0+(shape.height||0);
-    const baseW=shapePoints(shape).map(p=>worldPoint(p,z0));
-    const topW=shapePoints(shape).map(p=>worldPoint(p,z1));
-    const faces=[];
-    // Piso visível mesmo sem altura para que a vista 3D nunca fique vazia.
-    if(z1-z0<.01){
-      const pr=baseW.map(project3);
-      faces.push({points:pr,id:shape.id,fill:'rgba(214,237,241,.42)',stroke:'#1b6f88',selected:state.selected.includes(shape.id),depth:centroid(pr).depth});
-      return faces;
-    }
-    for(let i=0;i<baseW.length;i++){
-      const j=(i+1)%baseW.length;
-      const p=[baseW[i],baseW[j],topW[j],topW[i]].map(project3);
-      const avg=p.reduce((s,q)=>s+q.depth,0)/p.length;
-      const shade=0.28+0.13*((i%3)+1);
-      faces.push({points:p,id:shape.id,fill:`rgba(${Math.round(104+shade*110)},${Math.round(166+shade*65)},${Math.round(181+shade*52)},.92)`,stroke:'#0b5873',selected:state.selected.includes(shape.id),depth:avg});
-    }
-    const top=topW.map(project3);
-    faces.push({points:top,id:shape.id,fill:'rgba(228,245,247,.98)',stroke:'#0b5873',selected:state.selected.includes(shape.id),depth:top.reduce((s,q)=>s+q.depth,0)/top.length+0.001,label:true});
-    return faces;
-  }
-  function profileScreen(profile){
-    return {a:project3(worldPoint(profile.a,profile.z0)),b:project3(worldPoint(profile.b,profile.z1))};
-  }
-  function renderGround(){
-    const group=[];
-    // Desenha as duas direções da malha no plano Z=0, em perspetiva.
-    for(let i=-12;i<=12;i++){
-      const a=project3({x:i,y:-12,z:0}),b=project3({x:i,y:12,z:0});
-      group.push({a,b});
-      const c=project3({x:-12,y:i,z:0}),d=project3({x:12,y:i,z:0});
-      group.push({a:c,b:d});
-    }
-    group.forEach(g=>svg.appendChild(createSvg('line',{x1:g.a.x,y1:g.a.y,x2:g.b.x,y2:g.b.y,stroke:'rgba(67,117,75,.22)','stroke-width':'1'})));
-  }
-  function render3D(){
-    clearSvg();
-    svg.appendChild(createSvg('rect',{width:'1200',height:'460',fill:'#bde4f0'}));
-    svg.appendChild(createSvg('rect',{y:'460',width:'1200',height:'300',fill:'#bdd8ad'}));
-    if(state.layers.ground)renderGround();
-    const faces=[];
-    if(state.layers.architecture)state.shapes.filter(isClosed).forEach(s=>faces.push(...volumeFaces(s)));
-    // Pintor: fundo para frente, para que as faces não se atravessem.
-    faces.sort((a,b)=>b.depth-a.depth).forEach(f=>svg.appendChild(addPoly(f.points,f.id,f.fill,f.stroke,f.selected,f.depth)));
-    if(state.layers.lsf){
-      state.profiles.slice().sort((a,b)=>{
-        const aa=profileScreen(a),bb=profileScreen(b);
-        return ((bb.a.depth+bb.b.depth)-(aa.a.depth+aa.b.depth));
-      }).forEach(profile=>{
-        const p=profileScreen(profile),selected=state.selected.includes(profile.id);
-        svg.appendChild(addLine(p.a,p.b,profile.id,selected?'#f2a229':'#164f6a',selected?5:3,selected));
-        if(selected){[p.a,p.b].forEach(q=>svg.appendChild(createSvg('circle',{cx:q.x,cy:q.y,r:5,class:'profile-node'})));}
-      });
-    }
-    if(state.layers.labels){
-      state.shapes.filter(isClosed).forEach(shape=>{
-        const c=centroid(shapePoints(shape).map(p=>worldPoint(p,(shape.elevation||0)+(shape.height||0))));
-        const q=project3(c);
-        const text=createSvg('text',{x:q.x+8,y:q.y-8,class:`label ${state.selected.includes(shape.id)?'is-selected':''}`});
-        text.textContent=`${shape.name} · ${(shape.height||0).toFixed(2)} m`;
-        svg.appendChild(text);
-      });
-    }
-    state.shapes.filter(isClosed).forEach(drawPushPullHandle);
-    if(!state.shapes.filter(isClosed).length){
-      const msg=createSvg('text',{x:'600',y:'400','text-anchor':'middle',class:'label'});msg.textContent='Desenhe um retângulo, círculo ou polígono em 2D para criar a geometria 3D.';svg.appendChild(msg);
-    }
-  }
-  function rebuild3D(){ renderCurrent(); }
-  function refresh3DSelection(){ renderCurrent(); }
-  function fit3D(show=true){
-    state.cameraYaw=-0.72;state.cameraPitch=0.48;state.cameraZoom=1;state.cameraPanX=0;state.cameraPanY=0;
-    updateCameraTarget();render3D();if(show)toast('Vista 3D ajustada ao modelo.');
-  }
-  function switchView(view){
-    state.view=view;
-    $('#stage2D').classList.remove('is-hidden');
-    $('#stage3D').classList.add('is-hidden');
-    $('#view2D').classList.toggle('is-active',view==='2d');
-    $('#view3D').classList.toggle('is-active',view==='3d');
-    $('#viewBadge').textContent=view==='2d'?'Vista 2D — Planta':'Vista 3D — Estrutura LSF';
-    if(view==='3d')updateCameraTarget();
-    renderCurrent();
-  }
-  function moveItemsDirect(dx,dy,dz){
-    state.selected.map(getItem).filter(Boolean).forEach(item=>{
-      if(item.kind==='profile'){item.a.x+=dx*PX_PER_M;item.b.x+=dx*PX_PER_M;item.a.y-=dy*PX_PER_M;item.b.y-=dy*PX_PER_M;item.z0+=dz;item.z1+=dz;}
-      else if(item.kind==='rect'){item.a.x+=dx*PX_PER_M;item.b.x+=dx*PX_PER_M;item.a.y-=dy*PX_PER_M;item.b.y-=dy*PX_PER_M;item.elevation=Math.max(0,(item.elevation||0)+dz);}
-      else if(item.kind==='circle'){item.c.x+=dx*PX_PER_M;item.c.y-=dy*PX_PER_M;item.elevation=Math.max(0,(item.elevation||0)+dz);}
-      else if(item.kind==='polygon'){item.points.forEach(p=>{p.x+=dx*PX_PER_M;p.y-=dy*PX_PER_M;});item.elevation=Math.max(0,(item.elevation||0)+dz);}
-    });
-  }
-  function rotateSelected(angle){
-    state.selected.map(getItem).filter(item=>item&&isClosed(item)).forEach(item=>{
-      const b=bounds(item),cx=b.x+b.w/2,cy=b.y+b.h/2;
-      const rot=p=>({x:cx+(p.x-cx)*Math.cos(angle)-(p.y-cy)*Math.sin(angle),y:cy+(p.x-cx)*Math.sin(angle)+(p.y-cy)*Math.cos(angle)});
-      if(item.kind==='polygon')item.points=item.points.map(rot);
-      if(item.kind==='rect'){const ps=shapePoints(item).map(rot);item.kind='polygon';item.points=ps;delete item.a;delete item.b;}
-    });
-  }
-
-  function generateLSF() {
-    const shapes = state.shapes.filter(isClosed);
-    if (!shapes.length) {
-      toast('Desenhe primeiro um retângulo, círculo ou polígono fechado.');
-      return;
-    }
-    state.profiles = [];
-    let index = 1;
-    shapes.forEach((shape, shapeIndex) => {
-      if (!shape.height || shape.height < 0.1) shape.height = state.currentHeight || 2.70;
-      const points = shapePoints(shape);
-      const panel = `P${String(shapeIndex + 1).padStart(2, '0')}`;
-      points.forEach((a, i) => {
-        const b = points[(i + 1) % points.length];
-        state.profiles.push({ id: uid('U'), kind: 'profile', type: 'Guia inferior', profile: 'U90x40x0.95', name: `${panel}-U${index++}`, panel, a, b, z0: 0, z1: 0 });
-        state.profiles.push({ id: uid('U'), kind: 'profile', type: 'Guia superior', profile: 'U90x40x0.95', name: `${panel}-U${index++}`, panel, a, b, z0: shape.height, z1: shape.height });
-        const length = Math.hypot(b.x - a.x, b.y - a.y);
-        const count = Math.max(2, Math.floor(length / (PX_PER_M * 0.6)) + 1);
-        for (let n = 0; n < count; n++) {
-          const t = n / (count - 1);
-          const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-          state.profiles.push({ id: uid('C'), kind: 'profile', type: 'Montante', profile: 'C90x40x0.95', name: `${panel}-M${index++}`, panel, a: point, b: point, z0: 0, z1: shape.height });
-        }
-      });
-    });
-    state.selected = [];
-    switchView('3d');
-    rebuild3D();
-    renderPanel();
-    toast(`${state.profiles.length} perfis LSF individuais gerados.`);
-  }
-
-  function moveSelected(axis) {
-    const distance = Number($('#moveStep').value || 0.1);
-    const dx = axis === 'x+' ? distance : axis === 'x-' ? -distance : 0;
-    const dy = axis === 'y+' ? -distance : axis === 'y-' ? distance : 0;
-    const dz = axis === 'z+' ? distance : axis === 'z-' ? -distance : 0;
-    const selected = state.selected.map(getItem).filter(Boolean);
-    if (!selected.length) {
-      toast('Selecione uma ou várias peças antes de mover.');
-      return;
-    }
-    selected.forEach((item) => {
-      if (item.kind === 'profile') {
-        item.a.x += dx * PX_PER_M;
-        item.b.x += dx * PX_PER_M;
-        item.a.y += dy * PX_PER_M;
-        item.b.y += dy * PX_PER_M;
-        item.z0 = Math.max(0, item.z0 + dz);
-        item.z1 = Math.max(0, item.z1 + dz);
-      } else if (item.kind === 'rect') {
-        item.a.x += dx * PX_PER_M;
-        item.b.x += dx * PX_PER_M;
-        item.a.y += dy * PX_PER_M;
-        item.b.y += dy * PX_PER_M;
-        item.elevation = Math.max(0, (item.elevation || 0) + dz);
-      } else if (item.kind === 'circle') {
-        item.c.x += dx * PX_PER_M;
-        item.c.y += dy * PX_PER_M;
-        item.elevation = Math.max(0, (item.elevation || 0) + dz);
-      } else if (item.kind === 'polygon') {
-        item.points.forEach((point) => { point.x += dx * PX_PER_M; point.y += dy * PX_PER_M; });
-        item.elevation = Math.max(0, (item.elevation || 0) + dz);
-      }
-    });
-    render2D();
-    rebuild3D();
-    renderPanel();
-    toast(`${selected.length} elemento(s) movido(s).`);
-  }
-
-  function deleteSelected() {
-    if (!state.selected.length) {
-      toast('Selecione um ou vários objetos antes de apagar.');
-      return;
-    }
-    if (!confirm(`Apagar ${state.selected.length} elemento(s) selecionado(s)?`)) return;
-    const ids = new Set(state.selected);
-    state.shapes = state.shapes.filter((item) => !ids.has(item.id));
-    state.profiles = state.profiles.filter((item) => !ids.has(item.id));
-    state.selected = [];
-    render2D();
-    rebuild3D();
-    renderPanel();
-    toast('Elementos selecionados apagados.');
-  }
-
-  function exportCSV() {
-    const rows = [['PROJETO', 'PAINEL', 'REFERENCIA', 'TIPO', 'PERFIL', 'COMPRIMENTO_MM', 'COTA_Z_MM']];
-    if (state.profiles.length) {
-      state.profiles.forEach((profile) => {
-        const length = Math.hypot(profile.b.x - profile.a.x, profile.b.y - profile.a.y, profile.z1 - profile.z0) / PX_PER_M * 1000;
-        rows.push(['Aloe LSF 360', profile.panel, profile.name, profile.type, profile.profile, length.toFixed(1), (profile.z0 * 1000).toFixed(1)]);
-      });
-    } else {
-      state.shapes.filter(isClosed).forEach((shape, index) => rows.push(['Aloe LSF 360', `P${index + 1}`, shape.name, shapeName(shape.kind), '—', ((shape.height || 0) * 1000).toFixed(1), ((shape.elevation || 0) * 1000).toFixed(1)]));
-    }
-    if (rows.length === 1) {
-      toast('Não existem dados suficientes para gerar CSV.');
-      return;
-    }
-    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(';')).join('\n');
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    link.download = 'aloe_lsf360_fabrico.csv';
-    link.click();
-    URL.revokeObjectURL(link.href);
-    toast('CSV de fabrico gerado.');
-  }
-
-  function renderPanel() {
-    const panel = $('#panelContent');
-    const selected = state.selected.map(getItem).filter(Boolean);
-
-    if (state.tab === 'entity') {
-      panel.innerHTML = `
-        <div class="card">
-          <h3>Propriedades</h3>
-          ${selected.length ? `<p><b>${selected.length} elemento(s) selecionado(s)</b></p><p>Referência: ${selected[0].name}</p><p>Tipo: ${selected[0].kind === 'profile' ? selected[0].type : shapeName(selected[0].kind)}</p><p>Perfil: ${selected[0].profile || '—'}</p>` : '<p>Selecione um objeto no desenho ou na lista abaixo.</p>'}
-        </div>
-        <div class="card"><h3>Objetos do projeto</h3><div class="list">
-          ${allItems().map((item) => `<div class="row ${state.selected.includes(item.id) ? 'is-selected' : ''}"><div><b>${item.name}</b><small>${item.kind === 'profile' ? item.type : shapeName(item.kind)} · ${item.profile || '—'}</small></div><button data-select-id="${item.id}" class="select-item">Selecionar</button></div>`).join('') || '<p>Nenhum objeto criado.</p>'}
-        </div></div>`;
-      $$('[data-select-id]').forEach((button) => button.addEventListener('click', () => selectItem(getItem(button.dataset.selectId), state.multi)));
-    }
-
-    if (state.tab === 'selection') {
-      const profiles = [...new Set(allItems().map((item) => item.profile).filter(Boolean))];
-      panel.innerHTML = `
-        <div class="card">
-          <h3>Seleção por objeto ou perfil</h3>
-          <div class="btns"><button id="toggleMulti" class="btn">${state.multi ? 'Desativar' : 'Ativar'} múltipla</button><button id="clearSelection" class="btn">Limpar seleção</button></div>
-          <div class="field"><label>Tipo</label><select id="filterType"><option value="all">Todos</option><option value="rect">Retângulos</option><option value="circle">Círculos</option><option value="polygon">Polígonos</option><option value="profile">Perfis LSF</option></select></div>
-          <div class="field"><label>Perfil</label><select id="filterProfile"><option value="all">Todos</option>${profiles.map((profile) => `<option value="${profile}">${profile}</option>`).join('')}</select></div>
-          <button id="selectFiltered" class="btn green">Selecionar filtrados</button>
-        </div>
-        <div class="card"><h3>Peças individuais</h3><div class="list">${allItems().map((item) => `<div class="row ${state.selected.includes(item.id) ? 'is-selected' : ''}"><div><b>${item.name}</b><small>${item.kind === 'profile' ? item.type : shapeName(item.kind)} · ${item.profile || '—'}</small></div><button data-list-id="${item.id}" class="select-item">Selecionar</button></div>`).join('') || '<p>Gere LSF para criar guias e montantes individuais.</p>'}</div></div>`;
-      $('#toggleMulti').onclick = () => { state.multi = !state.multi; renderPanel(); };
-      $('#clearSelection').onclick = () => selectItem(null, false);
-      $('#selectFiltered').onclick = () => {
-        const type = $('#filterType').value;
-        const profile = $('#filterProfile').value;
-        state.selected = allItems().filter((item) => (type === 'all' || (type === 'profile' ? item.kind === 'profile' : item.kind === type)) && (profile === 'all' || item.profile === profile)).map((item) => item.id);
-        setStatus(`${state.selected.length} elemento(s) selecionado(s) pelos filtros.`);
-        render2D();
-        refresh3DSelection();
-        renderPanel();
-      };
-      $$('[data-list-id]').forEach((button) => button.addEventListener('click', () => selectItem(getItem(button.dataset.listId), state.multi)));
-    }
-
-    if (state.tab === 'profiles') {
-      panel.innerHTML = `
-        <div class="card"><h3>Catálogo de perfis LSF</h3>
-          <div class="field"><label>Montantes</label><select id="studProfile"><option>C90x40x0.95</option><option>C100x40x0.95</option><option>C120x40x1.20</option><option>C140x40x1.20</option><option>C150x50x1.50</option><option>C200x50x1.50</option><option>C250x50x2.00</option><option>C300x50x2.00</option></select></div>
-          <div class="field"><label>Guias</label><select id="trackProfile"><option>U90x40x0.95</option><option>U100x40x0.95</option><option>U120x40x1.20</option><option>U140x40x1.20</option><option>U150x50x1.50</option><option>U200x50x1.50</option><option>U250x50x2.00</option><option>U300x50x2.00</option></select></div>
-          <div class="field"><label>Outras famílias</label><select><option>L / Cantoneira</option><option>Ómega / Cartola</option><option>Viga</option><option>Perfil de piso</option></select></div>
-          <button id="applyProfiles" class="btn green">Aplicar à seleção</button>
-        </div>`;
-      $('#applyProfiles').onclick = () => {
-        const stud = $('#studProfile').value;
-        const track = $('#trackProfile').value;
-        state.selected.map(getItem).filter((item) => item?.kind === 'profile').forEach((profile) => profile.profile = profile.type === 'Montante' ? stud : track);
-        rebuild3D();
-        renderPanel();
-        toast('Perfis aplicados à seleção.');
-      };
-    }
-
-    if (state.tab === 'geo') {
-      panel.innerHTML = `
-        <div class="card"><h3>Geolocalização</h3><p>Pesquisa por rua, número, código postal e localidade.</p>
-          <div class="field"><label>Rua e número</label><input id="geoStreet" value="${state.geo.street}" placeholder="Rua das Acácias, 123"></div>
-          <div class="field"><label>Código postal</label><input id="geoPostcode" value="${state.geo.postcode}" placeholder="3080-123"></div>
-          <div class="field"><label>Localidade</label><input id="geoPlace" value="${state.geo.place}" placeholder="Figueira da Foz"></div>
-          <button id="saveGeo" class="btn green">Guardar localização</button>
-        </div>`;
-      $('#saveGeo').onclick = () => {
-        state.geo.street = $('#geoStreet').value;
-        state.geo.postcode = $('#geoPostcode').value;
-        state.geo.place = $('#geoPlace').value;
-        toast('Localização guardada no projeto.');
-      };
-    }
-
-    if (state.tab === 'csv') {
-      panel.innerHTML = `<div class="card"><h3>CSV de fabrico</h3><p>Gera lista de perfis e cortes individuais do modelo LSF.</p><button id="panelCSV" class="btn green">Gerar CSV de fabrico</button></div>`;
-      $('#panelCSV').onclick = exportCSV;
-    }
-  }
-
-  function updateCoords(x, y, z) {
-    $('#coords').textContent = `X: ${(x / PX_PER_M).toFixed(3)} · Y: ${(y / PX_PER_M).toFixed(3)} · Z: ${Number(z).toFixed(3)}`;
-  }
-
-  function wireUI() {
-    $$('[data-tool]').forEach((button) => button.addEventListener('click', () => setTool(button.dataset.tool)));
-    $('#view2D').onclick = () => switchView('2d');
-    $('#view3D').onclick = () => switchView('3d');
-    $('#toggleView').onclick = () => switchView(state.view === '2d' ? '3d' : '2d');
-    $('#generateLSF').onclick = generateLSF;
-    $('#generateCSV').onclick = exportCSV;
-    $('#fit3D').onclick = () => { if (state.view !== '3d') switchView('3d'); fit3D(true); };
-    $('#togglePanel').onclick = () => $('#rightPanel').classList.toggle('is-hidden');
-    $('#closePanel').onclick = () => $('#rightPanel').classList.add('is-hidden');
-    $$('[data-tab]').forEach((tab) => tab.addEventListener('click', () => {
-      $$('[data-tab]').forEach((button) => button.classList.remove('is-active'));
-      tab.classList.add('is-active');
-      state.tab = tab.dataset.tab;
-      renderPanel();
-    }));
-    $$('[data-layer]').forEach((input) => input.addEventListener('change', () => {
-      state.layers[input.dataset.layer] = input.checked;
-      render2D();
-      rebuild3D();
-    }));
-    $$('[data-move]').forEach((button) => button.addEventListener('click', () => {
-      if (button.dataset.move === 'center') { if (state.view !== '3d') switchView('3d'); fit3D(true); return; }
-      moveSelected(button.dataset.move);
-    }));
-    $('#menu').onclick = (event) => {
-      const button = event.target.closest('button');
-      if (!button) return;
-      const action = button.dataset.menu;
-      if (action === 'new') {
-        if (confirm('Criar um novo projeto? O conteúdo atual será limpo.')) {
-          state.shapes = []; state.profiles = []; state.selected = []; render2D(); rebuild3D(); renderPanel();
-        }
-      } else if (action === 'export') {
-        exportCSV();
-      } else if (action === 'print') {
-        window.print();
-      } else if (action === 'open' || action === 'import') {
-        $('#fileInput').click();
-      } else {
-        toast(`Função preparada: ${button.textContent}.`);
-      }
-    };
-    $('#fileInput').addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const data = JSON.parse(reader.result);
-          Object.assign(state, data);
-          render2D(); rebuild3D(); renderPanel(); toast('Projeto importado.');
-        } catch {
-          toast('Ficheiro JSON inválido.');
-        }
-      };
-      reader.readAsText(file);
-    });
-  }
-
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      state.draft = null; state.polygon = []; state.arcPoints = []; state.lasso = null; render2D();
-    }
-    if (event.key === 'Enter' && state.polygon.length >= 3) {
-      addShape({ kind: 'polygon', points: [...state.polygon] });
-      state.polygon = [];
-    }
-    if ((event.key === 'Delete' || event.key === 'Backspace') && document.activeElement.tagName !== 'INPUT') deleteSelected();
+  return faces;
+}
+function drawProfiles2D(){
+  if(!S.layers.lsf)return;
+  S.profiles.forEach(p=>{
+    const a=worldTo2D(p.a),b=worldTo2D(p.b),selected=S.selected.includes(p.id);
+    const line=svgEl('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,
+      class:selected?'profile selected':'profile','data-id':p.id});
+    line.setAttribute('stroke-width',p.section==='U'?7:6);
+    svg.append(line);
+    // small section marker indicates actual C or U family in plan.
+    const m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    const marker=svgEl('text',{x:m.x+4,y:m.y-5,class:'profile-section-label'});
+    marker.textContent=p.section==='U'?'U':'C';
+    svg.append(marker);
   });
-
-  function addDemo() {
-    const demo = { kind: 'rect', a: { x: 330, y: 260 }, b: { x: 720, y: 500 }, height: 2.70, elevation: 0 };
-    addShape(demo);
-    state.selected = [demo.id];
-  }
-
-  function init() {
-    wireUI();
-    addDemo();
-    render2D();
-    renderPanel();
-  }
-
-  init();
+}
+function drawProfiles(){
+  if(!S.layers.lsf)return;
+  if(S.mode==='2d'){drawProfiles2D();return}
+  S.profiles.forEach(p=>{
+    const selected=S.selected.includes(p.id);
+    profileFaces(p)
+      .sort((a,b)=>depth(a)-depth(b))
+      .forEach(f=>addPolygon(f.pts,`profile-face ${f.style}${selected?' selected':''}`,p.id));
+    if(selected)addText(profileMidpoint(p),`${p.name} · ${p.profile}`,true);
+  });
+}
+function render(){
+  clear();
+  const defs=svgEl('defs');const marker=svgEl('marker',{id:'arrow',markerWidth:9,markerHeight:9,refX:7,refY:3,orient:'auto'});marker.append(svgEl('path',{d:'M0,0 L0,6 L8,3 z',fill:'#159447'}));defs.append(marker);svg.append(defs);
+  if(S.mode==='2d'){render2D();return}
+  gridPlane();
+  if(S.layers.shapes)S.shapes.forEach(s=>drawShape(s));
+  drawProfiles();
+  if(S.draft)drawShape(S.draft,true);
+  if(S.polygon.length){for(let i=0;i<S.polygon.length-1;i++)addLine(S.polygon[i],S.polygon[i+1],'draw-preview','')}
+  if(S.selected.length===1 && S.tool==='push'){const s=item(S.selected[0]);if(s&&isClosed(s)){const b=pointsOf(s);const c=b.reduce((a,p)=>({x:a.x+p.x/b.length,y:a.y+p.y/b.length,z:a.z+p.z/b.length}),{x:0,y:0,z:0}),no=normalOf(s);const tip={x:c.x+no.x*1.3,y:c.y+no.y*1.3,z:c.z+no.z*1.3};const q1=project(c),q2=project(tip);svg.append(svgEl('line',{x1:q1.x,y1:q1.y,x2:q2.x,y2:q2.y,class:'normal-arrow'}));addText(tip,'Arraste para extrudir',false)}}
+}
+function render2D(){
+  const r=viewportRect();svg.append(svgEl('rect',{width:r.width,height:r.height,fill:'#f5fbfb'}));
+  for(let x=0;x<r.width;x+=44)svg.append(svgEl('line',{x1:x,y1:0,x2:x,y2:r.height,class:'grid-line'}));
+  for(let y=0;y<r.height;y+=44)svg.append(svgEl('line',{x1:0,y1:y,x2:r.width,y2:y,class:'grid-line'}));
+  svg.append(svgEl('line',{x1:r.width*.17,y1:0,x2:r.width*.17,y2:r.height,class:'axis-x'}));svg.append(svgEl('line',{x1:0,y1:r.height*.72,x2:r.width,y2:r.height*.72,class:'axis-y'}));
+  if(S.layers.shapes)S.shapes.forEach(s=>drawShape(s));drawProfiles2D();
+}
+function worldTo2D(P){return{x:560+P.x*72,y:430-P.y*72}}
+function screenPoint(e){const r=viewportRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+function updateCoords(P){$('#coords').textContent=`X: ${n(P.x,3)} · Y: ${n(P.y,3)} · Z: ${n(P.z,3)}`}
+function hitId(target){let t=target;while(t&&t!==svg){if(t.dataset&&t.dataset.id!==undefined&&t.dataset.id)return t.dataset.id;t=t.parentNode}return null}
+function select(it,add=false){if(!it){if(!add)S.selected=[];$('#selectionLabel').textContent='Nenhum objeto selecionado.';render();panel();return}if(add||S.multi){S.selected.includes(it.id)?S.selected=S.selected.filter(x=>x!==it.id):S.selected.push(it.id)}else S.selected=[it.id];$('#selectionLabel').textContent=`${S.selected.length} elemento(s) selecionado(s): ${it.name}`;render();panel()}
+function setTool(t){S.tool=t;$$('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));$('#toolLabel').textContent='Ferramenta: '+toolName(t);$('#hint').textContent=t==='orbit'?'Órbita ativa: arraste no espaço 3D. A rotação horizontal é contínua.' : t==='push'?'Empurrar/Puxar: clique numa face fechada e arraste verticalmente com o rato.' : `Plano ${S.activePlane} ativo. Escolha uma ferramenta e desenhe diretamente no espaço 3D.`}
+function setPlane(p){if(p==='FACE'){const it=S.selected.map(item).find(s=>s&&isClosed(s));if(!it)return toast('Selecione uma face fechada primeiro.');S.activePlane=it.plane;S.planeOffset=it.offset;$('#planeOffset').value=S.planeOffset;toast('Plano da face selecionada ativado.')}else{S.activePlane=p}$$('[data-plane]').forEach(b=>b.classList.toggle('active',b.dataset.plane===p));$('#planeLabel').textContent=p==='XY'?'XY · Chão':p==='XZ'?'XZ · Frontal':p==='YZ'?'YZ · Lateral':'Face selecionada';render()}
+function localPt(screen){if(S.mode==='2d'){return{x:(screen.x-560)/72,y:(430-screen.y)/72,z:0}}return planeCoordsFromScreen(screen)}
+function planeCoordsFromScreen(pt){
+  const c=center(),scale=72*S.cam.zoom,cy=Math.cos(S.cam.yaw),sy=Math.sin(S.cam.yaw),cp=Math.cos(S.cam.pitch),sp=Math.sin(S.cam.pitch);
+  const X=(pt.x-c.x)/scale,D=(c.y-pt.y)/scale,eps=v=>Math.abs(v)<.001?(v<0?-.001:.001):v,o=S.planeOffset;
+  if(S.activePlane==='XY'){const Y=(cp*o-D)/eps(sp);return{x:X*cy+Y*sy,y:-X*sy+Y*cy,z:o}}
+  if(S.activePlane==='XZ'){const y=o,x=(X+sy*y)/eps(cy),Y=x*sy+y*cy,z=(D+sp*Y)/eps(cp);return{x,y,z}}
+  const x=o,y=(cy*x-X)/eps(sy),Y=x*sy+y*cy,z=(D+sp*Y)/eps(cp);return{x,y,z}
+}
+function finish(s){s.id=uid();s.name=shapeName(s.kind)+' '+(S.shapes.length+1);s.height=s.height||0;S.shapes.push(s);S.draft=null;render();panel();toast(s.name+' fixado.')}
+function start(e){
+  const p=screenPoint(e),w=localPt(p);updateCoords(w);
+  if(S.tool==='orbit'){S.drag={kind:'orbit',x:p.x,y:p.y,yaw:S.cam.yaw,pitch:S.cam.pitch};return}
+  const it=item(hitId(e.target));
+  if(S.tool==='select'){select(it,e.ctrlKey||e.metaKey);return}
+  if(S.tool==='delete'){if(it){select(it);removeSelected()}return}
+  if(S.tool==='move'){if(!it)return toast('Clique primeiro no objeto a mover.');select(it,e.ctrlKey||e.metaKey);S.drag={kind:'move',x:p.x,y:p.y,last:w};return}
+  if(S.tool==='push'){if(!it||!isClosed(it))return toast('Selecione um retângulo, círculo ou polígono fechado.');select(it);S.drag={kind:'push',id:it.id,y:p.y,h:it.height||0};return}
+  if(S.tool==='line'){S.draft={kind:'line',plane:S.activePlane,a:w,b:w,offset:S.planeOffset};return}
+  if(S.tool==='rect'){const L=worldToLocal(S.activePlane,w);S.draft={kind:'rect',plane:S.activePlane,offset:S.planeOffset,u1:L.u,v1:L.v,u2:L.u,v2:L.v};return}
+  if(S.tool==='circle'){const L=worldToLocal(S.activePlane,w);S.draft={kind:'circle',plane:S.activePlane,offset:S.planeOffset,u:L.u,v:L.v,r:0};return}
+  if(S.tool==='polygon'){S.polygon.push(w);render();return}
+}
+function move(e){
+  const p=screenPoint(e),w=localPt(p);updateCoords(w);
+  if(!S.drag)return;
+  if(S.drag.kind==='orbit'){S.cam.yaw=S.drag.yaw+(p.x-S.drag.x)*.010;S.cam.pitch=Math.max(-1.20,Math.min(1.20,S.drag.pitch+(p.y-S.drag.y)*.008));render();return}
+  if(S.drag.kind==='push'){const it=item(S.drag.id);if(it){it.height=Math.max(0,(S.drag.h+(S.drag.y-p.y)/85));render()}return}
+  if(S.drag.kind==='move'){const du=w.x-S.drag.last.x,dv=w.y-S.drag.last.y,dz=w.z-S.drag.last.z;shiftSelected(du,dv,dz);S.drag.last=w;render();return}
+  if(S.draft){if(S.draft.kind==='line')S.draft.b=w;if(S.draft.kind==='rect'){const L=worldToLocal(S.activePlane,w);S.draft.u2=L.u;S.draft.v2=L.v}if(S.draft.kind==='circle'){const L=worldToLocal(S.activePlane,w);S.draft.r=Math.hypot(L.u-S.draft.u,L.v-S.draft.v)}render()}
+}
+function end(e){
+  if(S.drag){const was=S.drag.kind;S.drag=null;if(was==='push')toast('Extrusão fixada.');return}
+  if(S.draft){if(S.draft.kind==='circle'){if(S.draft.r>.03)finish(S.draft)}else {const ps=pointsOf(S.draft);if(ps.length===2?Math.hypot(ps[1].x-ps[0].x,ps[1].y-ps[0].y,ps[1].z-ps[0].z)>.03:true)finish(S.draft)}S.draft=null}
+}
+function shiftSelected(dx,dy,dz){S.selected.map(item).filter(Boolean).forEach(o=>{if(o.kind==='profile'){o.a.x+=dx;o.a.y+=dy;o.a.z+=dz;o.b.x+=dx;o.b.y+=dy;o.b.z+=dz}else if(o.kind==='line'){o.a.x+=dx;o.a.y+=dy;o.a.z+=dz;o.b.x+=dx;o.b.y+=dy;o.b.z+=dz}else if(o.kind==='polygon'){o.points.forEach(p=>{p.x+=dx;p.y+=dy;p.z+=dz})}else{const no=normalOf(o);o.offset+=dx*no.x+dy*no.y+dz*no.z}})}
+function removeSelected(){if(!S.selected.length)return toast('Selecione objetos antes de apagar.');if(!confirm('Apagar '+S.selected.length+' elemento(s) selecionado(s)?'))return;const ids=new Set(S.selected);S.shapes=S.shapes.filter(s=>!ids.has(s.id));S.profiles=S.profiles.filter(s=>!ids.has(s.id));S.selected=[];render();panel();toast('Elementos apagados.')}
+function generateLSF(){
+  const ss=S.shapes.filter(isClosed);if(!ss.length)return toast('Desenhe primeiro um retângulo, círculo ou polígono fechado.');
+  S.profiles=[];let k=1;
+  ss.forEach((s,idx)=>{if(!s.height||s.height<.1)s.height=2.70;const base=pointsOf(s),no=normalOf(s),panel='P'+String(idx+1).padStart(2,'0');for(let i=0;i<base.length;i++){const a=base[i],b=base[(i+1)%base.length],ta={x:a.x+no.x*s.height,y:a.y+no.y*s.height,z:a.z+no.z*s.height},tb={x:b.x+no.x*s.height,y:b.y+no.y*s.height,z:b.z+no.z*s.height};S.profiles.push({id:uid('U'),kind:'profile',type:'Guia inferior',profile:'U90x40x0.95',name:panel+'-U'+k++,panel,a,b,normal:no,section:'U',width:0.090,depth:0.040});S.profiles.push({id:uid('U'),kind:'profile',type:'Guia superior',profile:'U90x40x0.95',name:panel+'-U'+k++,panel,a:ta,b:tb,normal:no,section:'U',width:0.090,depth:0.040});const L=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z),n=Math.max(2,Math.floor(L/.6)+1);for(let j=0;j<n;j++){const t=j/(n-1),p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t},q={x:p.x+no.x*s.height,y:p.y+no.y*s.height,z:p.z+no.z*s.height};S.profiles.push({id:uid('C'),kind:'profile',type:'Montante',profile:'C90x40x0.95',name:panel+'-M'+k++,panel,a:p,b:q,normal:no,section:'C',width:0.090,depth:0.040,lip:0.014})}}});
+  render();panel();toast(S.profiles.length+' perfis LSF individuais gerados.');
+}
+function exportCSV(){
+  const rows=[['PROJETO','PAINEL','REFERENCIA','TIPO','PERFIL','COMPRIMENTO_MM']];
+  if(S.profiles.length)S.profiles.forEach(p=>rows.push(['Aloe LSF 360',p.panel,p.name,p.type,p.profile,(Math.hypot(p.b.x-p.a.x,p.b.y-p.a.y,p.b.z-p.a.z)*1000).toFixed(1)]));else S.shapes.filter(isClosed).forEach((s,i)=>rows.push(['Aloe LSF 360','P'+(i+1),s.name,shapeName(s.kind),'—',((s.height||0)*1000).toFixed(1)]));
+  if(rows.length===1)return toast('Não existem dados para exportar.');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n')],{type:'text/csv'}));a.download='aloe_lsf360_fabrico.csv';a.click();toast('CSV de fabrico gerado.');
+}
+function panel(){
+  const el=$('#panelBody'),sel=S.selected.map(item).filter(Boolean);
+  if(S.tab==='entity'){el.innerHTML=`<div class="card"><h3>Propriedades</h3>${sel.length?`<p><b>${sel.length} elemento(s) selecionado(s)</b></p><p>Referência: ${sel[0].name}</p><p>Tipo: ${sel[0].kind==='profile'?sel[0].type:shapeName(sel[0].kind)}</p><p>Plano: ${sel[0].plane||'3D'}</p><p>Altura: ${sel[0].height? n(sel[0].height)+' m':'—'}</p>`:'<p>Selecione um objeto no modelo 3D ou na lista abaixo.</p>'}</div><div class="card"><h3>Objetos do projeto</h3><div class="list">${items().map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.kind==='profile'?o.type:shapeName(o.kind)} · ${o.profile||o.plane||'—'}</small></div><button data-pick="${o.id}">Selecionar</button></div>`).join('')||'<p>Nenhum objeto criado.</p>'}</div></div>`;$$('[data-pick]').forEach(b=>b.onclick=()=>select(item(b.dataset.pick),S.multi))}
+  if(S.tab==='selection'){const p=[...new Set(items().map(o=>o.profile).filter(Boolean))];el.innerHTML=`<div class="card"><h3>Seleção individual e múltipla</h3><div class="btns"><button class="btn" id="multi">${S.multi?'Desativar':'Ativar'} múltipla</button><button class="btn" id="clear">Limpar seleção</button></div><div class="field"><label>Tipo</label><select id="filterType"><option value="all">Todos</option><option value="rect">Retângulos</option><option value="circle">Círculos</option><option value="polygon">Polígonos</option><option value="profile">Perfis LSF</option></select></div><div class="field"><label>Perfil</label><select id="filterProfile"><option value="all">Todos</option>${p.map(x=>`<option>${x}</option>`).join('')}</select></div><button class="btn green" id="applyFilter">Selecionar filtrados</button></div><div class="card"><h3>Peças individuais</h3><div class="list">${items().map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.kind==='profile'?o.type:shapeName(o.kind)} · ${o.profile||o.plane||'—'}</small></div><button data-pick2="${o.id}">Selecionar</button></div>`).join('')||'<p>Desenhe objetos para começar.</p>'}</div></div>`;$('#multi').onclick=()=>{S.multi=!S.multi;panel()};$('#clear').onclick=()=>select(null);$('#applyFilter').onclick=()=>{const t=$('#filterType').value,pf=$('#filterProfile').value;S.selected=items().filter(o=>(t==='all'||(t==='profile'?o.kind==='profile':o.kind===t))&&(pf==='all'||o.profile===pf)).map(o=>o.id);render();panel();$('#selectionLabel').textContent=S.selected.length+' elemento(s) selecionado(s) pelo filtro.'};$$('[data-pick2]').forEach(b=>b.onclick=()=>select(item(b.dataset.pick2),S.multi))}
+  if(S.tab==='profiles'){el.innerHTML=`<div class="card"><h3>Perfis LSF</h3><p>Perfis representados por secções abertas C e U, com alma, abas e lábios no modelo 3D.</p><div class="profile-gallery"><figure><img src="assets/lsf-profile-c.svg" alt="Perfil C"><figcaption>Montante C</figcaption></figure><figure><img src="assets/lsf-profile-u.svg" alt="Perfil U"><figcaption>Guia U</figcaption></figure><figure><img src="assets/lsf-profile-l.svg" alt="Perfil L"><figcaption>Cantoneira L</figcaption></figure></div><div class="field"><label>Montante</label><select id="stud"><option>C90x40x0.95</option><option>C100x40x0.95</option><option>C140x40x1.20</option><option>C150x50x1.50</option><option>C200x50x1.50</option><option>C300x50x2.00</option></select></div><div class="field"><label>Guia</label><select id="track"><option>U90x40x0.95</option><option>U100x40x0.95</option><option>U140x40x1.20</option><option>U150x50x1.50</option><option>U200x50x1.50</option><option>U300x50x2.00</option></select></div><button class="btn green" id="applyProfiles">Aplicar à seleção</button></div>`;$('#applyProfiles').onclick=()=>{const a=$('#stud').value,b=$('#track').value;S.selected.map(item).filter(x=>x?.kind==='profile').forEach(x=>x.profile=x.type==='Montante'?a:b);render();panel();toast('Perfis aplicados.')}}
+  if(S.tab==='geo'){el.innerHTML=`<div class="card"><h3>Geolocalização</h3><p>Planeie o terreno por rua, número, código postal e localidade.</p><div class="field"><label>Rua e número</label><input placeholder="Rua das Acácias, 123"></div><div class="field"><label>Código postal</label><input placeholder="3080-123"></div><div class="field"><label>Localidade</label><input placeholder="Figueira da Foz"></div><button class="btn green" id="saveGeo">Guardar localização</button></div>`;$('#saveGeo').onclick=()=>toast('Localização guardada no projeto.')}
+  if(S.tab==='csv'){el.innerHTML=`<div class="card"><h3>CSV de fabrico</h3><p>Exporta a lista de perfis LSF individuais e comprimentos.</p><button class="btn green" id="panelCSV">Gerar CSV de fabrico</button></div>`;$('#panelCSV').onclick=exportCSV}
+}
+function fit(){S.cam={yaw:-.72,pitch:.58,zoom:1,panX:0,panY:0};render();toast('Vista ajustada ao modelo.')}
+function setMode(m){S.mode=m;$('#b2').classList.toggle('active',m==='2d');$('#b3').classList.toggle('active',m==='3d');$('#badge').textContent=m==='2d'?'Vista 2D — Planta':'Vista 3D — Desenho em planos';render()}
+function init(){
+  svg.setAttribute('viewBox','0 0 1200 760');
+  $$('.tool[data-tool],.side[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+  $$('#toolstrip .tool').forEach(()=>{});
+  $('#genLSF').onclick=generateLSF;$('#genCSV').onclick=exportCSV;$('#fitView').onclick=fit;
+  $('#b2').onclick=()=>setMode('2d');$('#b3').onclick=()=>setMode('3d');$('#toggleMode').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');
+  $$('[data-plane]').forEach(b=>b.onclick=()=>setPlane(b.dataset.plane));$('#planeOffset').oninput=e=>{S.planeOffset=Number(e.target.value)||0;render()};
+  $$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});
+  $$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});
+  $('#togglePanel').onclick=()=>$('#rightpanel').classList.toggle('hidden');$('#closePanel').onclick=()=>$('#rightpanel').classList.add('hidden');
+  $('#mainMenu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar um projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];render();panel()}}else if(a==='export')exportCSV();else if(a==='print')window.print();else toast('Função preparada: '+b.textContent)};
+  svg.addEventListener('pointerdown',start);svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',end);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(.25,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:.89)));render()}},{passive:false});
+  window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',plane:S.activePlane,offset:S.planeOffset,points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()});
+  // Demo 3D base volume
+  const demo={kind:'rect',plane:'XY',offset:0,u1:-2.8,v1:-1.6,u2:2.8,v2:1.6,height:2.7};finish(demo);S.selected=[demo.id];setTool('select');render();panel();
+}
+init();
 })();
