@@ -22,7 +22,8 @@
     nextId: 1,
     layers: { architecture: true, lsf: true, labels: true, ground: true },
     currentHeight: 2.70,
-    geo: { street: '', postcode: '', place: '' }
+    geo: { street: '', postcode: '', place: '' },
+    cameraYaw: -0.72, cameraPitch: 0.52, cameraZoom: 1, cameraPanX: 0, cameraPanY: 0
   };
 
   let scene;
@@ -202,8 +203,7 @@
     if (!item) {
       if (!append) state.selected = [];
       setStatus('Nenhum objeto selecionado.');
-      render2D();
-      refresh3DSelection();
+      renderCurrent();
       renderPanel();
       return;
     }
@@ -213,8 +213,7 @@
       state.selected = [item.id];
     }
     setStatus(`${state.selected.length} elemento(s) selecionado(s): ${item.name}.`);
-    render2D();
-    refresh3DSelection();
+    renderCurrent();
     renderPanel();
   }
 
@@ -233,295 +232,123 @@
     const id = parentIdFromTarget(event.target);
     const hit = id ? getItem(id) : null;
 
-    if (state.tool === 'select') {
-      selectItem(hit, event.ctrlKey || event.metaKey);
-      return;
-    }
-    if (state.tool === 'delete') {
-      if (hit) {
-        selectItem(hit, false);
-        deleteSelected();
+    if (state.view === '3d') {
+      if (state.tool === 'orbit') {
+        state.orbitDrag = { x: event.clientX, y: event.clientY, yaw: state.cameraYaw, pitch: state.cameraPitch };
+        return;
+      }
+      if (state.tool === 'select') { selectItem(hit, event.ctrlKey || event.metaKey); return; }
+      if (state.tool === 'delete') { if (hit) { selectItem(hit, false); deleteSelected(); } return; }
+      if (state.tool === 'move') { if (hit) { selectItem(hit, event.ctrlKey || event.metaKey); state.moveDrag = { x:event.clientX,y:event.clientY }; } return; }
+      if (state.tool === 'rotate') { if (hit) { selectItem(hit,false); state.rotateDrag={x:event.clientX,y:event.clientY}; } return; }
+      if (state.tool === 'pushpull') {
+        if (hit && isClosed(hit)) {
+          selectItem(hit,false);
+          const value=prompt('Altura do volume em metros:',(hit.height||state.currentHeight||2.70).toFixed(2));
+          if(value!==null && Number(value)>0){hit.height=Number(value);state.currentHeight=hit.height;render3D();toast(`Volume atualizado para ${hit.height.toFixed(2)} m.`);}
+        } else toast('Selecione um retângulo, círculo ou polígono fechado.');
+        return;
       }
       return;
     }
-    if (state.tool === 'lasso') {
-      state.lasso = { a: point, b: point };
-      return;
-    }
-    if (['line', 'rect', 'circle'].includes(state.tool)) {
-      state.draft = state.tool === 'circle' ? { kind: 'circle', c: point, r: 0 } : { kind: state.tool, a: point, b: point };
-      render2D();
-      return;
-    }
-    if (state.tool === 'polygon') {
-      state.polygon.push(point);
-      render2D();
-      return;
-    }
-    if (state.tool === 'arc') {
-      state.arcPoints.push(point);
-      if (state.arcPoints.length === 3) {
-        const [c, a, b] = state.arcPoints;
-        addShape({ kind: 'arc', c, r: Math.hypot(a.x - c.x, a.y - c.y), a0: Math.atan2(a.y - c.y, a.x - c.x), a1: Math.atan2(b.y - c.y, b.x - c.x), ccw: false });
-        state.arcPoints = [];
-      }
-      return;
-    }
-    if (state.tool === 'pushpull') {
-      if (hit && isClosed(hit)) {
-        selectItem(hit, false);
-        const value = prompt('Altura do volume em metros:', (hit.height || state.currentHeight || 2.70).toFixed(2));
-        if (value !== null && Number(value) > 0) {
-          hit.height = Number(value);
-          state.currentHeight = hit.height;
-          switchView('3d');
-          rebuild3D();
-          toast(`Volume atualizado para ${hit.height.toFixed(2)} m.`);
-        }
-      } else {
-        toast('Selecione um retângulo, círculo ou polígono fechado.');
-      }
-    }
+
+    if (state.tool === 'select') { selectItem(hit, event.ctrlKey || event.metaKey); return; }
+    if (state.tool === 'delete') { if (hit) { selectItem(hit, false); deleteSelected(); } return; }
+    if (state.tool === 'lasso') { state.lasso = { a: point, b: point }; return; }
+    if (['line', 'rect', 'circle'].includes(state.tool)) { state.draft = state.tool === 'circle' ? { kind:'circle', c:point, r:0 } : { kind:state.tool, a:point, b:point }; render2D(); return; }
+    if (state.tool === 'polygon') { state.polygon.push(point); render2D(); return; }
+    if (state.tool === 'arc') { state.arcPoints.push(point); if(state.arcPoints.length===3){ const [c,a,b]=state.arcPoints; addShape({kind:'arc',c,r:Math.hypot(a.x-c.x,a.y-c.y),a0:Math.atan2(a.y-c.y,a.x-c.x),a1:Math.atan2(b.y-c.y,b.x-c.x),ccw:false}); state.arcPoints=[];} return; }
+    if (state.tool === 'pushpull') { if(hit&&isClosed(hit)){ selectItem(hit,false); const value=prompt('Altura do volume em metros:',(hit.height||state.currentHeight||2.70).toFixed(2)); if(value!==null&&Number(value)>0){hit.height=Number(value);state.currentHeight=hit.height;switchView('3d');toast(`Volume atualizado para ${hit.height.toFixed(2)} m.`);} }else toast('Selecione um retângulo, círculo ou polígono fechado.'); }
   }
 
   function handle2DMove(event) {
     const point = svgPoint(event);
     updateCoords(point.x, point.y, 0);
-    if (state.draft) {
-      if (state.draft.kind === 'circle') state.draft.r = Math.hypot(point.x - state.draft.c.x, point.y - state.draft.c.y);
-      else state.draft.b = point;
-      render2D();
+    if (state.view === '3d') {
+      if(state.orbitDrag){ state.cameraYaw=state.orbitDrag.yaw+(event.clientX-state.orbitDrag.x)*.010; state.cameraPitch=Math.max(-1.15,Math.min(1.15,state.orbitDrag.pitch+(event.clientY-state.orbitDrag.y)*.008));render3D(); }
+      if(state.moveDrag && state.selected.length){ const dx=(event.clientX-state.moveDrag.x)/70,dy=-(event.clientY-state.moveDrag.y)/70; moveItemsDirect(dx,dy,0);state.moveDrag={x:event.clientX,y:event.clientY};render3D(); }
+      if(state.rotateDrag && state.selected.length){ const da=(event.clientX-state.rotateDrag.x)*0.01; rotateSelected(da);state.rotateDrag={x:event.clientX,y:event.clientY};render3D(); }
+      return;
     }
-    if (state.lasso) {
-      state.lasso.b = point;
-      render2D();
-    }
+    if (state.draft) { if (state.draft.kind === 'circle') state.draft.r = Math.hypot(point.x - state.draft.c.x, point.y - state.draft.c.y); else state.draft.b = point; render2D(); }
+    if (state.lasso) { state.lasso.b = point; render2D(); }
   }
 
   function handle2DUp(event) {
     const point = svgPoint(event);
-    if (state.draft) {
-      const draft = state.draft;
-      if (draft.kind === 'circle') {
-        if (draft.r > 7) addShape(draft);
-      } else if (Math.hypot(point.x - draft.a.x, point.y - draft.a.y) > 7) {
-        addShape(draft);
-      }
-      state.draft = null;
-    }
-    if (state.lasso) {
-      const b = makeBox(state.lasso.a, state.lasso.b);
-      state.selected = state.shapes.filter((shape) => {
-        const q = bounds(shape);
-        return q.x >= b.x && q.y >= b.y && q.x + q.w <= b.x + b.w && q.y + q.h <= b.y + b.h;
-      }).map((shape) => shape.id);
-      state.lasso = null;
-      setStatus(`${state.selected.length} objeto(s) selecionado(s) por laço.`);
-      render2D();
-      renderPanel();
-    }
+    if(state.view==='3d'){ state.orbitDrag=null;state.moveDrag=null;state.rotateDrag=null;return; }
+    if (state.draft) { const draft = state.draft; if (draft.kind === 'circle') { if (draft.r > 7) addShape(draft); } else if (Math.hypot(point.x-draft.a.x,point.y-draft.a.y)>7) addShape(draft); state.draft=null; }
+    if (state.lasso) { const b=makeBox(state.lasso.a,state.lasso.b);state.selected=state.shapes.filter(shape=>{const q=bounds(shape);return q.x>=b.x&&q.y>=b.y&&q.x+q.w<=b.x+b.w&&q.y+q.h<=b.y+b.h;}).map(shape=>shape.id);state.lasso=null;setStatus(`${state.selected.length} objeto(s) selecionado(s) por laço.`);render2D();renderPanel(); }
   }
 
   svg.addEventListener('pointerdown', handle2DDown);
   svg.addEventListener('pointermove', handle2DMove);
   svg.addEventListener('pointerup', handle2DUp);
+  svg.addEventListener('wheel',(event)=>{ if(state.view==='3d'){event.preventDefault();state.cameraZoom=Math.max(.28,Math.min(2.8,state.cameraZoom*(event.deltaY<0?1.10:.90)));render3D();} },{passive:false});
 
-  // 3D engine
-  function init3D() {
-    if (scene) return;
-    const host = $('#stage3D');
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color('#bde4f0');
-    camera = new THREE.PerspectiveCamera(48, 1, 0.1, 500);
-    camera.position.set(10, -13, 10);
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-    host.appendChild(renderer.domElement);
-    scene.add(new THREE.HemisphereLight(0xe9fbff, 0x67815f, 2.2));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-    sun.position.set(8, -10, 18);
-    scene.add(sun);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0xbdd8ad, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.z = -0.02;
-    ground.userData.kind = 'ground';
-    scene.add(ground);
-    const grid = new THREE.GridHelper(80, 80, 0x7ca584, 0x9ab8a0);
-    grid.rotation.x = Math.PI / 2;
-    scene.add(grid);
-    orbit = new THREE.OrbitControls(camera, renderer.domElement);
-    orbit.enableDamping = true;
-    orbit.dampingFactor = 0.08;
-    orbit.maxPolarAngle = Math.PI - 0.05;
-    orbit.minDistance = 2;
-    orbit.maxDistance = 70;
-    orbit.target.set(0, 0, 1.4);
-    transform = new THREE.TransformControls(camera, renderer.domElement);
-    transform.setSize(0.75);
-    transform.addEventListener('dragging-changed', (event) => orbit.enabled = !event.value);
-    transform.addEventListener('objectChange', onTransformChanged);
-    scene.add(transform);
-    raycaster = new THREE.Raycaster();
-    mouse = new THREE.Vector2();
-    renderer.domElement.addEventListener('pointerdown', handle3DDown);
-    window.addEventListener('resize', resize3D);
-    resize3D();
-    animate();
+  // 3D SVG engine — funciona sem dependência externa e mantém a geometria visível.
+  function renderCurrent(){ if(state.view==='3d') render3D(); else render2D(); }
+  function project3(point,z=0){
+    const x=(point.x-600)/PX_PER_M, y=(410-point.y)/PX_PER_M;
+    const yaw=state.cameraYaw ?? -0.72, pitch=state.cameraPitch ?? 0.52, zoom=state.cameraZoom ?? 1;
+    const c=Math.cos(yaw),sn=Math.sin(yaw); const X=x*c-y*sn, Y=x*sn+y*c;
+    const cp=Math.cos(pitch),sp=Math.sin(pitch);
+    return {x:600+X*PX_PER_M*zoom+(state.cameraPanX||0), y:470-(Y*cp-z*sp)*PX_PER_M*zoom+(state.cameraPanY||0)};
   }
-
-  function resize3D() {
-    if (!renderer) return;
-    const host = $('#stage3D');
-    const rect = host.getBoundingClientRect();
-    camera.aspect = rect.width / rect.height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(rect.width, rect.height);
+  function add3DPoly(points, cls, id){ const n=createSvg('polygon',{points:points.map(p=>`${p.x},${p.y}`).join(' ')});n.classList.add('shape');if(cls)n.classList.add(cls);if(id)n.dataset.id=id;svg.appendChild(n);return n; }
+  function drawVolume3D(shape){
+    if(!isClosed(shape)||!(shape.height>0.01))return;
+    const base=shapePoints(shape).map(p=>project3(p,shape.elevation||0));
+    const top=shapePoints(shape).map(p=>project3(p,(shape.elevation||0)+shape.height));
+    const selected=state.selected.includes(shape.id);
+    for(let i=0;i<base.length;i++){const j=(i+1)%base.length;const side=add3DPoly([base[i],base[j],top[j],top[i],],selected?'is-selected':'',shape.id);side.style.fill='rgba(196,224,230,.72)';}
+    const cap=add3DPoly(top,selected?'is-selected':'',shape.id);cap.style.fill='rgba(225,244,246,.92)';
+    if(state.layers.labels){ const c=top.reduce((a,p)=>({x:a.x+p.x/top.length,y:a.y+p.y/top.length}),{x:0,y:0});const tx=createSvg('text',{x:c.x+8,y:c.y-6,class:`label ${selected?'is-selected':''}`});tx.textContent=`${shape.name} · ${shape.height.toFixed(2)} m`;svg.appendChild(tx); }
   }
-
-  function animate() {
-    requestAnimationFrame(animate);
-    if (orbit) orbit.update();
-    if (renderer) renderer.render(scene, camera);
+  function drawProfile3D(profile){
+    const a=project3(profile.a,profile.z0),b=project3(profile.b,profile.z1);
+    const line=createSvg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:`profile ${state.selected.includes(profile.id)?'is-selected':''}`});line.dataset.id=profile.id;svg.appendChild(line);
+    if(state.selected.includes(profile.id)){ [a,b].forEach(p=>svg.appendChild(createSvg('circle',{cx:p.x,cy:p.y,r:5,class:'profile-node'}))); }
   }
-
-  function canvasToWorld(point) {
-    return { x: (point.x - 600) / PX_PER_M, y: (410 - point.y) / PX_PER_M };
-  }
-
-  function makeExtrudedGeometry(shape) {
-    const points = shapePoints(shape).map(canvasToWorld);
-    const path = new THREE.Shape();
-    points.forEach((point, index) => index ? path.lineTo(point.x, point.y) : path.moveTo(point.x, point.y));
-    path.closePath();
-    return new THREE.ExtrudeGeometry(path, { depth: Math.max(0.02, shape.height || 0.02), bevelEnabled: false, curveSegments: 32 });
-  }
-
-  function remove3DObjects() {
-    threeObjects.forEach((object) => scene.remove(object));
-    threeObjects.clear();
-  }
-
-  function rebuild3D() {
-    init3D();
-    remove3DObjects();
-    if (state.layers.architecture) {
-      state.shapes.filter(isClosed).forEach((shape) => {
-        const geometry = makeExtrudedGeometry(shape);
-        const material = new THREE.MeshStandardMaterial({ color: state.selected.includes(shape.id) ? 0xf3a42b : 0xd8eef0, roughness: 0.7, metalness: 0.08 });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.z = shape.elevation || 0;
-        mesh.userData = { id: shape.id, kind: 'shape' };
-        scene.add(mesh);
-        threeObjects.set(shape.id, mesh);
-      });
-    }
-    if (state.layers.lsf) state.profiles.forEach((profile) => addProfile3D(profile));
-    fit3D(false);
-    refresh3DSelection();
-  }
-
-  function addProfile3D(profile) {
-    const start = canvasToWorld(profile.a);
-    const end = canvasToWorld(profile.b);
-    const a = new THREE.Vector3(start.x, start.y, profile.z0);
-    const b = new THREE.Vector3(end.x, end.y, profile.z1);
-    const vector = new THREE.Vector3().subVectors(b, a);
-    const length = vector.length();
-    const geometry = new THREE.BoxGeometry(0.055, 0.055, Math.max(0.02, length));
-    const material = new THREE.MeshStandardMaterial({ color: state.selected.includes(profile.id) ? 0xf3a42b : 0x2c7488, metalness: 0.55, roughness: 0.35 });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(a.clone().add(b).multiplyScalar(0.5));
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), vector.normalize());
-    mesh.userData = { id: profile.id, kind: 'profile' };
-    scene.add(mesh);
-    threeObjects.set(profile.id, mesh);
-  }
-
-  function handle3DDown(event) {
-    if (event.button !== 0 || state.tool === 'orbit') return;
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects([...threeObjects.values()], false);
-    const item = hits.length ? getItem(hits[0].object.userData.id) : null;
-
-    if (state.tool === 'select') {
-      selectItem(item, event.ctrlKey || event.metaKey);
-      return;
-    }
-    if (state.tool === 'delete') {
-      if (item) {
-        selectItem(item, false);
-        deleteSelected();
-      }
-      return;
-    }
-    if (state.tool === 'move' && item) {
-      selectItem(item, event.ctrlKey || event.metaKey);
-      transform.setMode('translate');
-      transform.attach(hits[0].object);
-      return;
-    }
-    if (state.tool === 'rotate' && item) {
-      selectItem(item, event.ctrlKey || event.metaKey);
-      transform.setMode('rotate');
-      transform.attach(hits[0].object);
-      return;
-    }
-    if (state.tool === 'pushpull' && item?.kind && isClosed(item)) {
-      selectItem(item, false);
-      const value = prompt('Altura do volume em metros:', (item.height || state.currentHeight || 2.70).toFixed(2));
-      if (value !== null && Number(value) > 0) {
-        item.height = Number(value);
-        state.currentHeight = item.height;
-        rebuild3D();
-        toast(`Volume atualizado para ${item.height.toFixed(2)} m.`);
-      }
+  function render3D(){
+    clearSvg();
+    svg.appendChild(createSvg('rect',{width:'1200',height:'390',fill:'#bde4f0'}));
+    svg.appendChild(createSvg('rect',{y:'390',width:'1200',height:'370',fill:'#bdd8ad'}));
+    // Base grid in 3D for orientation.
+    for(let n=-8;n<=8;n++){ const a=project3({x:600+n*PX_PER_M,y:100},0),b=project3({x:600+n*PX_PER_M,y:720},0);svg.appendChild(createSvg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'rgba(87,135,94,.25)','stroke-width':'1'})); }
+    if(state.layers.architecture) state.shapes.forEach(drawVolume3D);
+    if(state.layers.lsf) state.profiles.forEach(drawProfile3D);
+    if(!state.shapes.some(s=>isClosed(s)&&s.height>0.01)){
+      const msg=createSvg('text',{x:'600',y:'405','text-anchor':'middle',class:'label'});msg.textContent='Selecione um volume e use Empurrar/Puxar para o visualizar em 3D.';svg.appendChild(msg);
     }
   }
-
-  function onTransformChanged() {
-    const object = transform.object;
-    if (!object) return;
-    const item = getItem(object.userData.id);
-    if (!item || item.kind === 'profile') return;
-    item.elevation = Math.max(0, object.position.z);
+  function rebuild3D(){ renderCurrent(); }
+  function refresh3DSelection(){ renderCurrent(); }
+  function fit3D(show=true){ state.cameraYaw=-0.72;state.cameraPitch=0.52;state.cameraZoom=1;state.cameraPanX=0;state.cameraPanY=0;render3D();if(show)toast('Vista 3D ajustada ao modelo.'); }
+  function switchView(view){
+    state.view=view;
+    $('#stage2D').classList.remove('is-hidden');
+    $('#stage3D').classList.add('is-hidden');
+    $('#view2D').classList.toggle('is-active',view==='2d');
+    $('#view3D').classList.toggle('is-active',view==='3d');
+    $('#viewBadge').textContent=view==='2d'?'Vista 2D — Planta':'Vista 3D — Estrutura LSF';
+    renderCurrent();
   }
-
-  function refresh3DSelection() {
-    if (!scene) return;
-    threeObjects.forEach((object, id) => {
-      const item = getItem(id);
-      const selected = state.selected.includes(id);
-      if (object.material?.color) object.material.color.set(selected ? 0xf3a42b : item?.kind === 'profile' ? 0x2c7488 : 0xd8eef0);
+  function moveItemsDirect(dx,dy,dz){
+    state.selected.map(getItem).filter(Boolean).forEach(item=>{
+      if(item.kind==='profile'){item.a.x+=dx*PX_PER_M;item.b.x+=dx*PX_PER_M;item.a.y-=dy*PX_PER_M;item.b.y-=dy*PX_PER_M;item.z0+=dz;item.z1+=dz;}
+      else if(item.kind==='rect'){item.a.x+=dx*PX_PER_M;item.b.x+=dx*PX_PER_M;item.a.y-=dy*PX_PER_M;item.b.y-=dy*PX_PER_M;item.elevation=Math.max(0,(item.elevation||0)+dz);}
+      else if(item.kind==='circle'){item.c.x+=dx*PX_PER_M;item.c.y-=dy*PX_PER_M;item.elevation=Math.max(0,(item.elevation||0)+dz);}
+      else if(item.kind==='polygon'){item.points.forEach(p=>{p.x+=dx*PX_PER_M;p.y-=dy*PX_PER_M;});item.elevation=Math.max(0,(item.elevation||0)+dz);}
     });
-    if (state.selected.length !== 1) transform?.detach();
   }
-
-  function fit3D(show = true) {
-    if (!scene || !threeObjects.size) return;
-    const group = new THREE.Group();
-    threeObjects.forEach((object) => group.add(object.clone()));
-    const box = new THREE.Box3().setFromObject(group);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3()).length() || 8;
-    orbit.target.copy(center);
-    camera.position.copy(center.clone().add(new THREE.Vector3(size * 1.2, -size * 1.3, size * 0.95)));
-    camera.lookAt(center);
-    orbit.update();
-    if (show) toast('Vista 3D ajustada ao modelo.');
-  }
-
-  function switchView(view) {
-    state.view = view;
-    $('#stage2D').classList.toggle('is-hidden', view !== '2d');
-    $('#stage3D').classList.toggle('is-hidden', view !== '3d');
-    $('#view2D').classList.toggle('is-active', view === '2d');
-    $('#view3D').classList.toggle('is-active', view === '3d');
-    $('#viewBadge').textContent = view === '2d' ? 'Vista 2D — Planta' : 'Vista 3D — Estrutura LSF';
-    if (view === '2d') render2D();
-    if (view === '3d') rebuild3D();
+  function rotateSelected(angle){
+    state.selected.map(getItem).filter(item=>item&&isClosed(item)).forEach(item=>{
+      const b=bounds(item),cx=b.x+b.w/2,cy=b.y+b.h/2;
+      const rot=p=>({x:cx+(p.x-cx)*Math.cos(angle)-(p.y-cy)*Math.sin(angle),y:cy+(p.x-cx)*Math.sin(angle)+(p.y-cy)*Math.cos(angle)});
+      if(item.kind==='polygon')item.points=item.points.map(rot);
+      if(item.kind==='rect'){const ps=shapePoints(item).map(rot);item.kind='polygon';item.points=ps;delete item.a;delete item.b;}
+    });
   }
 
   function generateLSF() {
