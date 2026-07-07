@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" preserveAspectRatio="none">
- <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#bde4ef"/><stop offset="1" stop-color="#dff4f6"/></linearGradient><pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H48M0 0V48" stroke="#88a995" stroke-opacity=".35" stroke-width="1"/></pattern></defs>
- <rect width="1000" height="300" fill="url(#sky)"/><rect y="300" width="1000" height="300" fill="#bdd8ad"/><rect y="300" width="1000" height="300" fill="url(#grid)"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#bde0ad"/><g stroke="#79a27c" opacity=".45"><path d="M0 30h400M0 70h400M0 110h400M0 150h400M0 190h400M40 0v220M100 0v220M160 0v220M220 0v220M280 0v220M340 0v220"/></g></svg>

@@ -1,6 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 120" role="img" aria-label="Perfil C LSF">
- <rect width="180" height="120" rx="12" fill="#f7fbfc"/>
- <path d="M48 22h74v17H70v42h52v17H48z" fill="#c5d5db" stroke="#28566a" stroke-width="4" stroke-linejoin="round"/>
- <path d="M122 22v17M122 81v17" stroke="#638c9c" stroke-width="4"/>
- <text x="90" y="112" text-anchor="middle" font-family="Arial" font-size="15" fill="#31596a">Perfil C LSF</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 120"><path d="M20 20h82v18H44v44h58v18H20z" fill="#b8c4c9" stroke="#37535f" stroke-width="5"/><text x="70" y="110" text-anchor="middle" font-family="Arial" font-size="14" fill="#063a59">Perfil C</text></svg>
