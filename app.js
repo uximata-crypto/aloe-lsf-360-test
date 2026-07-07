@@ -23,7 +23,7 @@
     layers: { architecture: true, lsf: true, labels: true, ground: true },
     currentHeight: 2.70,
     geo: { street: '', postcode: '', place: '' },
-    cameraYaw: -0.72, cameraPitch: 0.48, cameraZoom: 1, cameraPanX: 0, cameraPanY: 0, cameraDistance: 15, cameraTarget: {x:0,y:0,z:1.35}
+    cameraYaw: -0.72, cameraPitch: 0.48, cameraZoom: 1, cameraPanX: 0, cameraPanY: 0, cameraDistance: 15, cameraTarget: {x:0,y:0,z:1.35}, pushDrag: null
   };
 
   let scene;
@@ -70,7 +70,7 @@
     updateToolUI();
     if (tool === 'orbit' && state.view !== '3d') switchView('3d');
     if (tool === 'delete') toast('Clique num objeto para apagar ou selecione e use Delete.');
-    if (tool === 'pushpull') toast('Selecione uma forma fechada e clique nela para definir a altura.');
+    if (tool === 'pushpull') toast('Empurrar/Puxar: clique numa face e arraste o rato para cima ou para baixo.');
   }
 
   function svgPoint(event) {
@@ -243,10 +243,10 @@
       if (state.tool === 'rotate') { if (hit) { selectItem(hit,false); state.rotateDrag={x:event.clientX,y:event.clientY}; } return; }
       if (state.tool === 'pushpull') {
         if (hit && isClosed(hit)) {
-          selectItem(hit,false);
-          const value=prompt('Altura do volume em metros:',(hit.height||state.currentHeight||2.70).toFixed(2));
-          if(value!==null && Number(value)>0){hit.height=Number(value);state.currentHeight=hit.height;render3D();toast(`Volume atualizado para ${hit.height.toFixed(2)} m.`);}
-        } else toast('Selecione um retângulo, círculo ou polígono fechado.');
+          beginPushPull(hit, event);
+        } else {
+          toast('Clique numa face fechada: retângulo, círculo ou polígono.');
+        }
         return;
       }
       return;
@@ -258,13 +258,33 @@
     if (['line', 'rect', 'circle'].includes(state.tool)) { state.draft = state.tool === 'circle' ? { kind:'circle', c:point, r:0 } : { kind:state.tool, a:point, b:point }; render2D(); return; }
     if (state.tool === 'polygon') { state.polygon.push(point); render2D(); return; }
     if (state.tool === 'arc') { state.arcPoints.push(point); if(state.arcPoints.length===3){ const [c,a,b]=state.arcPoints; addShape({kind:'arc',c,r:Math.hypot(a.x-c.x,a.y-c.y),a0:Math.atan2(a.y-c.y,a.x-c.x),a1:Math.atan2(b.y-c.y,b.x-c.x),ccw:false}); state.arcPoints=[];} return; }
-    if (state.tool === 'pushpull') { if(hit&&isClosed(hit)){ selectItem(hit,false); const value=prompt('Altura do volume em metros:',(hit.height||state.currentHeight||2.70).toFixed(2)); if(value!==null&&Number(value)>0){hit.height=Number(value);state.currentHeight=hit.height;switchView('3d');toast(`Volume atualizado para ${hit.height.toFixed(2)} m.`);} }else toast('Selecione um retângulo, círculo ou polígono fechado.'); }
+    if (state.tool === 'pushpull') {
+      if (hit && isClosed(hit)) {
+        selectItem(hit,false);
+        switchView('3d');
+        beginPushPull(hit,event);
+      } else {
+        toast('Clique num retângulo, círculo ou polígono fechado antes de arrastar.');
+      }
+      return;
+    }
   }
 
   function handle2DMove(event) {
     const point = svgPoint(event);
     updateCoords(point.x, point.y, 0);
     if (state.view === '3d') {
+      if (state.pushDrag) {
+        const item=getItem(state.pushDrag.id);
+        if (item) {
+          const delta=(state.pushDrag.startY-event.clientY)/150;
+          item.height=Math.max(.02,Math.round((state.pushDrag.startHeight+delta)*100)/100);
+          state.currentHeight=item.height;
+          setStatus(`Empurrar/Puxar ativo: ${item.name} · ${item.height.toFixed(2)} m. Largue o rato para fixar.`);
+          render3D();
+        }
+        return;
+      }
       if(state.orbitDrag){ state.cameraYaw=state.orbitDrag.yaw+(event.clientX-state.orbitDrag.x)*.010; state.cameraPitch=Math.max(-1.15,Math.min(1.15,state.orbitDrag.pitch+(event.clientY-state.orbitDrag.y)*.008));render3D(); }
       if(state.moveDrag && state.selected.length){ const dx=(event.clientX-state.moveDrag.x)/70,dy=-(event.clientY-state.moveDrag.y)/70; moveItemsDirect(dx,dy,0);state.moveDrag={x:event.clientX,y:event.clientY};render3D(); }
       if(state.rotateDrag && state.selected.length){ const da=(event.clientX-state.rotateDrag.x)*0.01; rotateSelected(da);state.rotateDrag={x:event.clientX,y:event.clientY};render3D(); }
@@ -276,7 +296,19 @@
 
   function handle2DUp(event) {
     const point = svgPoint(event);
-    if(state.view==='3d'){ state.orbitDrag=null;state.moveDrag=null;state.rotateDrag=null;return; }
+    if(state.view==='3d'){
+      if(state.pushDrag){
+        const item=getItem(state.pushDrag.id);
+        if(item){
+          state.currentHeight=item.height;
+          setStatus(`Altura fixada: ${item.name} · ${item.height.toFixed(2)} m.`);
+          toast(`Altura fixada em ${item.height.toFixed(2)} m.`);
+        }
+        state.pushDrag=null;
+        renderPanel();
+      }
+      state.orbitDrag=null;state.moveDrag=null;state.rotateDrag=null;return;
+    }
     if (state.draft) { const draft = state.draft; if (draft.kind === 'circle') { if (draft.r > 7) addShape(draft); } else if (Math.hypot(point.x-draft.a.x,point.y-draft.a.y)>7) addShape(draft); state.draft=null; }
     if (state.lasso) { const b=makeBox(state.lasso.a,state.lasso.b);state.selected=state.shapes.filter(shape=>{const q=bounds(shape);return q.x>=b.x&&q.y>=b.y&&q.x+q.w<=b.x+b.w&&q.y+q.h<=b.y+b.h;}).map(shape=>shape.id);state.lasso=null;setStatus(`${state.selected.length} objeto(s) selecionado(s) por laço.`);render2D();renderPanel(); }
   }
@@ -285,6 +317,34 @@
   svg.addEventListener('pointermove', handle2DMove);
   svg.addEventListener('pointerup', handle2DUp);
   svg.addEventListener('wheel',(event)=>{ if(state.view==='3d'){event.preventDefault();state.cameraZoom=Math.max(.28,Math.min(2.8,state.cameraZoom*(event.deltaY<0?1.10:.90)));render3D();} },{passive:false});
+
+  function beginPushPull(item,event){
+    if(!item || !isClosed(item)) return;
+    selectItem(item,false);
+    // A altura começa na atual; se for uma planta sem volume, começa no plano e sobe com o arrasto.
+    const initial=Math.max(0,Number(item.height||0));
+    state.pushDrag={id:item.id,startY:event.clientY,startHeight:initial};
+    setStatus(`Empurrar/Puxar: arraste o rato para cima para aumentar e para baixo para reduzir. Altura: ${initial.toFixed(2)} m.`);
+    toast('Arraste verticalmente sobre a vista 3D. Largue para fixar a altura.');
+    render3D();
+  }
+
+  function drawPushPullHandle(shape){
+    if(state.tool!=='pushpull' || !state.selected.includes(shape.id)) return;
+    const topZ=(shape.elevation||0)+(shape.height||0);
+    const world=shapePoints(shape).map(p=>worldPoint(p,topZ));
+    if(!world.length)return;
+    const c=project3(centroid(world));
+    const end={x:c.x,y:c.y-62};
+    const handle=addLine(c,end,shape.id,'#159447',4,true);
+    handle.classList.add('push-handle');
+    svg.appendChild(handle);
+    const arrow=createSvg('polygon',{points:`${end.x},${end.y-12} ${end.x-9},${end.y+6} ${end.x+9},${end.y+6}`,fill:'#159447'});
+    arrow.dataset.id=shape.id;arrow.classList.add('push-arrow');svg.appendChild(arrow);
+    const label=createSvg('text',{x:end.x+13,y:end.y-2,class:'push-label'});
+    label.textContent=`${(shape.height||0).toFixed(2)} m`;
+    svg.appendChild(label);
+  }
 
   // Renderizador 3D próprio — geometria e perspetiva reais, sem dependências externas.
   function renderCurrent(){ if(state.view==='3d') render3D(); else render2D(); }
@@ -413,6 +473,7 @@
         svg.appendChild(text);
       });
     }
+    state.shapes.filter(isClosed).forEach(drawPushPullHandle);
     if(!state.shapes.filter(isClosed).length){
       const msg=createSvg('text',{x:'600',y:'400','text-anchor':'middle',class:'label'});msg.textContent='Desenhe um retângulo, círculo ou polígono em 2D para criar a geometria 3D.';svg.appendChild(msg);
     }
