@@ -23,7 +23,7 @@
     layers: { architecture: true, lsf: true, labels: true, ground: true },
     currentHeight: 2.70,
     geo: { street: '', postcode: '', place: '' },
-    cameraYaw: -0.72, cameraPitch: 0.52, cameraZoom: 1, cameraPanX: 0, cameraPanY: 0
+    cameraYaw: -0.72, cameraPitch: 0.48, cameraZoom: 1, cameraPanX: 0, cameraPanY: 0, cameraDistance: 15, cameraTarget: {x:0,y:0,z:1.35}
   };
 
   let scene;
@@ -286,45 +286,143 @@
   svg.addEventListener('pointerup', handle2DUp);
   svg.addEventListener('wheel',(event)=>{ if(state.view==='3d'){event.preventDefault();state.cameraZoom=Math.max(.28,Math.min(2.8,state.cameraZoom*(event.deltaY<0?1.10:.90)));render3D();} },{passive:false});
 
-  // 3D SVG engine — funciona sem dependência externa e mantém a geometria visível.
+  // Renderizador 3D próprio — geometria e perspetiva reais, sem dependências externas.
   function renderCurrent(){ if(state.view==='3d') render3D(); else render2D(); }
-  function project3(point,z=0){
-    const x=(point.x-600)/PX_PER_M, y=(410-point.y)/PX_PER_M;
-    const yaw=state.cameraYaw ?? -0.72, pitch=state.cameraPitch ?? 0.52, zoom=state.cameraZoom ?? 1;
-    const c=Math.cos(yaw),sn=Math.sin(yaw); const X=x*c-y*sn, Y=x*sn+y*c;
-    const cp=Math.cos(pitch),sp=Math.sin(pitch);
-    return {x:600+X*PX_PER_M*zoom+(state.cameraPanX||0), y:470-(Y*cp-z*sp)*PX_PER_M*zoom+(state.cameraPanY||0)};
+
+  function worldPoint(point, z = 0){
+    return { x:(point.x-600)/PX_PER_M, y:(410-point.y)/PX_PER_M, z };
   }
-  function add3DPoly(points, cls, id){ const n=createSvg('polygon',{points:points.map(p=>`${p.x},${p.y}`).join(' ')});n.classList.add('shape');if(cls)n.classList.add(cls);if(id)n.dataset.id=id;svg.appendChild(n);return n; }
-  function drawVolume3D(shape){
-    if(!isClosed(shape)||!(shape.height>0.01))return;
-    const base=shapePoints(shape).map(p=>project3(p,shape.elevation||0));
-    const top=shapePoints(shape).map(p=>project3(p,(shape.elevation||0)+shape.height));
-    const selected=state.selected.includes(shape.id);
-    for(let i=0;i<base.length;i++){const j=(i+1)%base.length;const side=add3DPoly([base[i],base[j],top[j],top[i],],selected?'is-selected':'',shape.id);side.style.fill='rgba(196,224,230,.72)';}
-    const cap=add3DPoly(top,selected?'is-selected':'',shape.id);cap.style.fill='rgba(225,244,246,.92)';
-    if(state.layers.labels){ const c=top.reduce((a,p)=>({x:a.x+p.x/top.length,y:a.y+p.y/top.length}),{x:0,y:0});const tx=createSvg('text',{x:c.x+8,y:c.y-6,class:`label ${selected?'is-selected':''}`});tx.textContent=`${shape.name} · ${shape.height.toFixed(2)} m`;svg.appendChild(tx); }
+  function vSub(a,b){return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z};}
+  function vAdd(a,b){return {x:a.x+b.x,y:a.y+b.y,z:a.z+b.z};}
+  function vMul(a,s){return {x:a.x*s,y:a.y*s,z:a.z*s};}
+  function dot(a,b){return a.x*b.x+a.y*b.y+a.z*b.z;}
+  function cross(a,b){return {x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x};}
+  function norm(a){const l=Math.hypot(a.x,a.y,a.z)||1;return {x:a.x/l,y:a.y/l,z:a.z/l};}
+  function centroid(points){const n=points.length||1;return points.reduce((s,p)=>vAdd(s,p),{x:0,y:0,z:0});}
+  function modelBounds(){
+    const all=[];
+    state.shapes.filter(isClosed).forEach(s=>{
+      const z0=s.elevation||0, z1=z0+(s.height||0);
+      shapePoints(s).forEach(p=>{all.push(worldPoint(p,z0),worldPoint(p,z1));});
+    });
+    state.profiles.forEach(p=>{all.push(worldPoint(p.a,p.z0),worldPoint(p.b,p.z1));});
+    if(!all.length)return {min:{x:-4,y:-3,z:0},max:{x:4,y:3,z:3}};
+    return {min:{x:Math.min(...all.map(p=>p.x)),y:Math.min(...all.map(p=>p.y)),z:Math.min(...all.map(p=>p.z))},max:{x:Math.max(...all.map(p=>p.x)),y:Math.max(...all.map(p=>p.y)),z:Math.max(...all.map(p=>p.z))}};
   }
-  function drawProfile3D(profile){
-    const a=project3(profile.a,profile.z0),b=project3(profile.b,profile.z1);
-    const line=createSvg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:`profile ${state.selected.includes(profile.id)?'is-selected':''}`});line.dataset.id=profile.id;svg.appendChild(line);
-    if(state.selected.includes(profile.id)){ [a,b].forEach(p=>svg.appendChild(createSvg('circle',{cx:p.x,cy:p.y,r:5,class:'profile-node'}))); }
+  function updateCameraTarget(){
+    const b=modelBounds();
+    state.cameraTarget={x:(b.min.x+b.max.x)/2,y:(b.min.y+b.max.y)/2,z:(b.min.z+b.max.z)/2};
+    const diag=Math.hypot(b.max.x-b.min.x,b.max.y-b.min.y,b.max.z-b.min.z)||8;
+    state.cameraDistance=Math.max(8,diag*1.85);
+  }
+  function cameraBasis(){
+    const t=state.cameraTarget||{x:0,y:0,z:1.35};
+    const yaw=state.cameraYaw, pitch=state.cameraPitch, d=state.cameraDistance/(state.cameraZoom||1);
+    const pos={x:t.x+d*Math.cos(pitch)*Math.cos(yaw),y:t.y+d*Math.cos(pitch)*Math.sin(yaw),z:t.z+d*Math.sin(pitch)};
+    const forward=norm(vSub(t,pos));
+    let right=norm(cross(forward,{x:0,y:0,z:1}));
+    if(Math.hypot(right.x,right.y,right.z)<.01)right={x:1,y:0,z:0};
+    const up=norm(cross(right,forward));
+    return {pos,forward,right,up};
+  }
+  function project3(world){
+    const r=svg.getBoundingClientRect(), w=1200, h=760;
+    const cam=cameraBasis();
+    const rel=vSub(world,cam.pos);
+    const depth=dot(rel,cam.forward);
+    const focal=760;
+    const safe=Math.max(.20,depth);
+    return {x:w/2+(dot(rel,cam.right)*focal/safe)+(state.cameraPanX||0),y:h*.56-(dot(rel,cam.up)*focal/safe)+(state.cameraPanY||0),depth,safe};
+  }
+  function addPoly(points, id, fill, stroke, selected, depth){
+    const n=createSvg('polygon',{points:points.map(p=>`${p.x},${p.y}`).join(' '),fill,stroke,'stroke-width':selected?4:1.6,'stroke-linejoin':'round'});
+    n.classList.add('shape');
+    if(selected)n.classList.add('is-selected');
+    if(id)n.dataset.id=id;
+    n.dataset.depth=depth;
+    return n;
+  }
+  function addLine(a,b,id,stroke,width,selected){
+    const n=createSvg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke,'stroke-width':selected?width+2:width,'stroke-linecap':'round'});
+    n.classList.add('profile');
+    if(selected)n.classList.add('is-selected');
+    if(id)n.dataset.id=id;
+    return n;
+  }
+  function volumeFaces(shape){
+    const z0=shape.elevation||0, z1=z0+(shape.height||0);
+    const baseW=shapePoints(shape).map(p=>worldPoint(p,z0));
+    const topW=shapePoints(shape).map(p=>worldPoint(p,z1));
+    const faces=[];
+    // Piso visível mesmo sem altura para que a vista 3D nunca fique vazia.
+    if(z1-z0<.01){
+      const pr=baseW.map(project3);
+      faces.push({points:pr,id:shape.id,fill:'rgba(214,237,241,.42)',stroke:'#1b6f88',selected:state.selected.includes(shape.id),depth:centroid(pr).depth});
+      return faces;
+    }
+    for(let i=0;i<baseW.length;i++){
+      const j=(i+1)%baseW.length;
+      const p=[baseW[i],baseW[j],topW[j],topW[i]].map(project3);
+      const avg=p.reduce((s,q)=>s+q.depth,0)/p.length;
+      const shade=0.28+0.13*((i%3)+1);
+      faces.push({points:p,id:shape.id,fill:`rgba(${Math.round(104+shade*110)},${Math.round(166+shade*65)},${Math.round(181+shade*52)},.92)`,stroke:'#0b5873',selected:state.selected.includes(shape.id),depth:avg});
+    }
+    const top=topW.map(project3);
+    faces.push({points:top,id:shape.id,fill:'rgba(228,245,247,.98)',stroke:'#0b5873',selected:state.selected.includes(shape.id),depth:top.reduce((s,q)=>s+q.depth,0)/top.length+0.001,label:true});
+    return faces;
+  }
+  function profileScreen(profile){
+    return {a:project3(worldPoint(profile.a,profile.z0)),b:project3(worldPoint(profile.b,profile.z1))};
+  }
+  function renderGround(){
+    const group=[];
+    // Desenha as duas direções da malha no plano Z=0, em perspetiva.
+    for(let i=-12;i<=12;i++){
+      const a=project3({x:i,y:-12,z:0}),b=project3({x:i,y:12,z:0});
+      group.push({a,b});
+      const c=project3({x:-12,y:i,z:0}),d=project3({x:12,y:i,z:0});
+      group.push({a:c,b:d});
+    }
+    group.forEach(g=>svg.appendChild(createSvg('line',{x1:g.a.x,y1:g.a.y,x2:g.b.x,y2:g.b.y,stroke:'rgba(67,117,75,.22)','stroke-width':'1'})));
   }
   function render3D(){
     clearSvg();
-    svg.appendChild(createSvg('rect',{width:'1200',height:'390',fill:'#bde4f0'}));
-    svg.appendChild(createSvg('rect',{y:'390',width:'1200',height:'370',fill:'#bdd8ad'}));
-    // Base grid in 3D for orientation.
-    for(let n=-8;n<=8;n++){ const a=project3({x:600+n*PX_PER_M,y:100},0),b=project3({x:600+n*PX_PER_M,y:720},0);svg.appendChild(createSvg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'rgba(87,135,94,.25)','stroke-width':'1'})); }
-    if(state.layers.architecture) state.shapes.forEach(drawVolume3D);
-    if(state.layers.lsf) state.profiles.forEach(drawProfile3D);
-    if(!state.shapes.some(s=>isClosed(s)&&s.height>0.01)){
-      const msg=createSvg('text',{x:'600',y:'405','text-anchor':'middle',class:'label'});msg.textContent='Selecione um volume e use Empurrar/Puxar para o visualizar em 3D.';svg.appendChild(msg);
+    svg.appendChild(createSvg('rect',{width:'1200',height:'460',fill:'#bde4f0'}));
+    svg.appendChild(createSvg('rect',{y:'460',width:'1200',height:'300',fill:'#bdd8ad'}));
+    if(state.layers.ground)renderGround();
+    const faces=[];
+    if(state.layers.architecture)state.shapes.filter(isClosed).forEach(s=>faces.push(...volumeFaces(s)));
+    // Pintor: fundo para frente, para que as faces não se atravessem.
+    faces.sort((a,b)=>b.depth-a.depth).forEach(f=>svg.appendChild(addPoly(f.points,f.id,f.fill,f.stroke,f.selected,f.depth)));
+    if(state.layers.lsf){
+      state.profiles.slice().sort((a,b)=>{
+        const aa=profileScreen(a),bb=profileScreen(b);
+        return ((bb.a.depth+bb.b.depth)-(aa.a.depth+aa.b.depth));
+      }).forEach(profile=>{
+        const p=profileScreen(profile),selected=state.selected.includes(profile.id);
+        svg.appendChild(addLine(p.a,p.b,profile.id,selected?'#f2a229':'#164f6a',selected?5:3,selected));
+        if(selected){[p.a,p.b].forEach(q=>svg.appendChild(createSvg('circle',{cx:q.x,cy:q.y,r:5,class:'profile-node'})));}
+      });
+    }
+    if(state.layers.labels){
+      state.shapes.filter(isClosed).forEach(shape=>{
+        const c=centroid(shapePoints(shape).map(p=>worldPoint(p,(shape.elevation||0)+(shape.height||0))));
+        const q=project3(c);
+        const text=createSvg('text',{x:q.x+8,y:q.y-8,class:`label ${state.selected.includes(shape.id)?'is-selected':''}`});
+        text.textContent=`${shape.name} · ${(shape.height||0).toFixed(2)} m`;
+        svg.appendChild(text);
+      });
+    }
+    if(!state.shapes.filter(isClosed).length){
+      const msg=createSvg('text',{x:'600',y:'400','text-anchor':'middle',class:'label'});msg.textContent='Desenhe um retângulo, círculo ou polígono em 2D para criar a geometria 3D.';svg.appendChild(msg);
     }
   }
   function rebuild3D(){ renderCurrent(); }
   function refresh3DSelection(){ renderCurrent(); }
-  function fit3D(show=true){ state.cameraYaw=-0.72;state.cameraPitch=0.52;state.cameraZoom=1;state.cameraPanX=0;state.cameraPanY=0;render3D();if(show)toast('Vista 3D ajustada ao modelo.'); }
+  function fit3D(show=true){
+    state.cameraYaw=-0.72;state.cameraPitch=0.48;state.cameraZoom=1;state.cameraPanX=0;state.cameraPanY=0;
+    updateCameraTarget();render3D();if(show)toast('Vista 3D ajustada ao modelo.');
+  }
   function switchView(view){
     state.view=view;
     $('#stage2D').classList.remove('is-hidden');
@@ -332,6 +430,7 @@
     $('#view2D').classList.toggle('is-active',view==='2d');
     $('#view3D').classList.toggle('is-active',view==='3d');
     $('#viewBadge').textContent=view==='2d'?'Vista 2D — Planta':'Vista 3D — Estrutura LSF';
+    if(view==='3d')updateCameraTarget();
     renderCurrent();
   }
   function moveItemsDirect(dx,dy,dz){
@@ -618,7 +717,7 @@
   });
 
   function addDemo() {
-    const demo = { kind: 'rect', a: { x: 330, y: 260 }, b: { x: 720, y: 500 }, height: 0 };
+    const demo = { kind: 'rect', a: { x: 330, y: 260 }, b: { x: 720, y: 500 }, height: 2.70, elevation: 0 };
     addShape(demo);
     state.selected = [demo.id];
   }

@@ -1,36 +1,16 @@
-# Aloe LSF 360 — Pack de Teste Completo
+# Aloe LSF 360 — Teste Render 3D Estável
 
-## Ficheiros para GitHub/Vercel
-- `index.html`
-- `styles.css`
-- `app.js`
-- `vercel.json`
+## Correção de renderização
+Esta versão substitui a projeção anterior por uma câmara em perspetiva própria, com:
+- duas direções de grelha no terreno;
+- prisma retangular com base, topo e faces laterais corretas;
+- profundidade e ordem de faces para não atravessar a geometria;
+- órbita horizontal contínua, inclinação vertical controlada e zoom;
+- elementos 2D fechados continuam visíveis no 3D mesmo antes de receberem altura;
+- retângulo inicial já com 2,70 m, para validar a vista 3D imediatamente.
 
-Carregue todos os ficheiros diretamente na raiz do repositório `aloe-lsf-360-test`.
-
-## O que funciona nesta base
-- Cabeçalho Aloe LSF 360 e interface completa de teste.
-- Retângulo, linha, círculo, arco, polígono e laço em 2D.
-- As figuras ficam fixas e visíveis em SVG.
-- Seleção por clique direto e pela lista no painel direito.
-- Seleção múltipla e filtros por tipo/perfil.
-- Vista 3D com Three.js, órbita 360°, zoom e pan.
-- Empurrar/Puxar com definição de altura.
-- Gerar LSF com guias U e montantes C individuais.
-- Seleção de perfis individuais, mover, rodar e apagar.
-- CSV básico de fabrico por painel/perfil.
-- Geolocalização por rua, código postal e localidade guardada no projeto.
-
-## Limites conhecidos
-- A geolocalização ainda não consulta mapas/terreno externo.
-- DXF/DWG e CSV CNC específico da perfiladora serão módulos seguintes.
-- A exportação CSV incluída é uma lista de corte estruturada, não substitui regras CNC específicas de `DIMPLE`, `NOTCH`, `SWAGE`, etc.
-
-## Teste recomendado
-1. Abra o site: deve aparecer `Retângulo 1` visível no centro.
-2. Selecione o retângulo pelo clique ou pela lista em `Entidade`.
-3. Escolha `Empurrar/Puxar`, clique no retângulo e indique `2.70`.
-4. Mude para 3D e teste `Órbita`.
-5. Clique `Gerar LSF`.
-6. Na aba `Seleção`, selecione um montante individual e use `Mover` ou `Apagar`.
-7. Clique `Gerar CSV`.
+## Teste
+1. Abra em 2D e veja o retângulo inicial.
+2. Carregue em 3D: o prisma deve aparecer de imediato.
+3. Selecione Órbita e arraste; use a roda do rato para zoom.
+4. Use Gerar LSF: os montantes/guias surgem sobre o volume e podem ser selecionados.
