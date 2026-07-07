@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" role="img" aria-label="Aloe LSF 360">
+  <rect width="420" height="96" rx="18" fill="#ffffff"/>
+  <path d="M48 82C27 70 16 54 16 34C16 17 30 5 48 1C66 5 80 17 80 34C80 54 69 70 48 82Z" fill="#159447"/>
+  <path d="M48 13v54M29 30l19 14m19-14-19 14M29 50l19 12m19-12-19 12" fill="none" stroke="#eaf7ed" stroke-width="4" stroke-linecap="round"/>
+  <text x="102" y="58" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="800" fill="#073d5b">Aloe</text>
+  <text x="218" y="58" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800" fill="#159447">LSF 360</text>
+  <text x="104" y="80" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#5c7885">Arquitetura · Estrutura · Fabrico</text>
+</svg>
