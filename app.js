@@ -11,7 +11,7 @@ function msg(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden')
 function item(id){return S.shapes.find(x=>x.id===id)||S.profiles.find(x=>x.id===id)}
 function items(){return [...S.shapes,...S.profiles]}
 function toolName(t){return({select:'Selecionar',line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono',push:'Empurrar/Puxar',pan:'Mão / mover tela',move:'Mover',orbit:'Órbita',delete:'Apagar',calibrate:'Calibrar por 2 pontos'})[t]||t}
-function shapeName(k){return({line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono',profile:'Perfil LSF'})[k]||k}
+function shapeName(k){return({line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono',profile:'Perfil LSF',door:'Porta',window:'Janela'})[k]||k}
 function isClosed(s){return ['rect','circle','polygon'].includes(s.kind)}
 function screenPt(e){const r=svg.getBoundingClientRect();return{x:(e.clientX-r.left)*1200/r.width,y:(e.clientY-r.top)*760/r.height}}
 function world2D(P){return{x:ORIGIN.x+S.view2d.panX+P.x*SCALE,y:ORIGIN.y+S.view2d.panY-P.y*SCALE}}
@@ -22,16 +22,195 @@ function pointsOf(s){if(s.kind==='rect'){const x1=Math.min(s.a.x,s.b.x),x2=Math.
 function centroid(pts){return pts.reduce((a,p)=>({x:a.x+p.x/pts.length,y:a.y+p.y/pts.length,z:a.z+p.z/pts.length}),{x:0,y:0,z:0})}
 function perimeter(s){const p=pointsOf(s);let L=0;for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];L+=Math.hypot(b.x-a.x,b.y-a.y)}return L}
 function area(s){if(s.kind==='rect'){const p=pointsOf(s);return Math.abs((p[1].x-p[0].x)*(p[2].y-p[1].y))}if(s.kind==='circle')return Math.PI*s.r*s.r;if(s.kind==='polygon'){const p=pointsOf(s);let A=0;for(let i=0,j=p.length-1;i<p.length;j=i++)A+=(p[j].x+p[i].x)*(p[j].y-p[i].y);return Math.abs(A/2)}return 0}
+
+function openingWidthOf(o){return lineLength(o)}
+function openingHeightOf(o){if(!isOpening(o))return 0;return o.openingType==='door'?Number(o.openingHeight||2.10):Number(o.openingHeight||((o.openingHead||2.10)-(o.sillHeight||0.90)))}
+function sillHeightOf(o){return Number(o.sillHeight||0.90)}
+function headHeightOf(o){return Number(o.openingHead||(sillHeightOf(o)+openingHeightOf(o)))}
+function setOpeningWidth(o,width){width=Math.max(0.30,Number(width)||openingWidthOf(o));const cx=(o.a.x+o.b.x)/2,cy=(o.a.y+o.b.y)/2;const dx=o.b.x-o.a.x,dy=o.b.y-o.a.y,L=Math.hypot(dx,dy)||1;const ux=dx/L,uy=dy/L,h=width/2;o.a={x:cx-ux*h,y:cy-uy*h,z:0};o.b={x:cx+ux*h,y:cy+uy*h,z:0};o.openingWidth=width}
+function setOpeningHeights(o,height,sill=null){height=Math.max(0.30,Number(height)||openingHeightOf(o));o.openingHeight=height;if(o.openingType==='door'){o.openingHead=height;o.sillHeight=0}else{const sh=sill===null?sillHeightOf(o):Math.max(0,Number(sill)||0);o.sillHeight=sh;o.openingHead=sh+height}}
+function associateOpeningsToPanels(closedSet=null,lineSet=null){
+  const closed=closedSet||S.shapes.filter(isClosed);
+  const allLines=S.shapes.filter(o=>o.kind==='line'&&!o.openingType);
+  const activeLines=lineSet||allLines;
+  const openings=S.shapes.filter(o=>o.kind==='line'&&o.openingType);
+  openings.forEach(o=>{
+    const c={x:(o.a.x+o.b.x)/2,y:(o.a.y+o.b.y)/2};
+    let best=null;
+    const consider=(a,b,panel,wallName,wallType,segmentIndex)=>{
+      const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;
+      const ux=dx/L,uy=dy/L;
+      const t=((c.x-a.x)*ux+(c.y-a.y)*uy)/L;
+      const perp=Math.abs((c.x-a.x)*(-uy)+(c.y-a.y)*(ux));
+      if(t<0.01||t>0.99||perp>0.20)return;
+      const score=perp+Math.abs(0.5-t)*0.02;
+      if(!best||score<best.score)best={panel,wallName,wallType,segmentIndex,score};
+    };
+    closed.forEach((s,si)=>{
+      const pts=pointsOf(s), panel='P'+String(si+1).padStart(2,'0');
+      for(let i=0;i<pts.length;i++){
+        consider(pts[i],pts[(i+1)%pts.length],panel,(s.name||('Painel '+panel))+' / parede '+(i+1),s.wallType||classifySegmentWall(pts[i],pts[(i+1)%pts.length],si),i+1);
+      }
+    });
+    activeLines.forEach((ln,idx)=>{
+      const wt=ln.wallType||classifySegmentWall(ln.a,ln.b,-1);
+      const panel=(wt==='exterior'?'E':'I')+String(idx+1).padStart(2,'0');
+      consider(ln.a,ln.b,panel,ln.name||('Linha '+(idx+1)),wt,1);
+    });
+    if(best){
+      o.associatedPanel=best.panel;
+      o.associatedWall=best.wallName;
+      o.associatedWallType=best.wallType;
+      o.associatedSegment=best.segmentIndex;
+    }else{
+      o.associatedPanel='—';
+      o.associatedWall='—';
+      o.associatedWallType=o.wallType||'—';
+      o.associatedSegment='—';
+    }
+  });
+}
+function numberOpeningsByPanel(){
+  associateOpeningsToPanels();
+  const counters={};
+  const openings=S.shapes
+    .filter(o=>o.kind==='line'&&o.openingType)
+    .sort((a,b)=>{
+      const pa=(a.associatedPanel||'ZZZ'), pb=(b.associatedPanel||'ZZZ');
+      if(pa!==pb)return pa.localeCompare(pb);
+      const ay=(a.a.y+a.b.y)/2, by=(b.a.y+b.b.y)/2;
+      if(Math.abs(by-ay)>0.01)return by-ay;
+      const ax=(a.a.x+a.b.x)/2, bx=(b.a.x+b.b.x)/2;
+      return ax-bx;
+    });
+  openings.forEach(o=>{
+    const panel=o.associatedPanel&&o.associatedPanel!=='—'?o.associatedPanel:'SEM';
+    counters[panel]=(counters[panel]||0)+1;
+    o.openingCode=panel+'-V'+String(counters[panel]).padStart(2,'0');
+  });
+}
+function openingMapRows(){
+  numberOpeningsByPanel();
+  return S.shapes.filter(o=>o.kind==='line'&&o.openingType).map((o,i)=>['MAPA_VAOS',o.openingCode||('O'+(i+1)),o.associatedPanel||'—',o.associatedWall||'—',o.name||('Abertura '+(i+1)),o.openingType==='door'?'Porta':'Janela',o.associatedWallType||o.wallType||'—',(openingWidthOf(o)*1000).toFixed(1),(openingHeightOf(o)*1000).toFixed(1),o.openingType==='window'?(sillHeightOf(o)*1000).toFixed(1):'0.0',o.openingType==='window'?(headHeightOf(o)*1000).toFixed(1):(openingHeightOf(o)*1000).toFixed(1),o.openingType==='door'?(o.doorHinge==='end'?'Direita':'Esquerda'):'—',o.autoDetected?'Auto/ajustada':'Manual']);
+}
+
 function addText(P,text,selected=false){if(!S.layers.labels)return;const p=S.mode==='2d'?world2D(P):project(P);const t=el('text',{x:p.x+7,y:p.y-7,class:'label'+(selected?' selected':'')});t.textContent=text;svg.append(t)}
 function addPoly(points,cls,id){const e=el('polygon',{points:points.map(p=>p.x+','+p.y).join(' '),class:cls,'data-id':id||''});svg.append(e);return e}
 function addLine(a,b,cls,id){const e=el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:cls,'data-id':id||''});svg.append(e);return e}
+function addPath(d,cls,id){const e=el('path',{d,class:cls,'data-id':id||''});svg.append(e);return e}
+
+function isOpening(o){return !!(o&&o.kind==='line'&&o.openingType)}
+function wallStrokeClass(s,sel=false){
+  if(isOpening(s))return sel?'edge selected':(s.openingType==='door'?'door-line':'window-line');
+  return sel?'edge selected':(s.wallType==='exterior'?'wall-ext':'wall-int');
+}
+function offsetSegmentWorld(a,b,off){
+  const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;
+  const nx=-dy/L, ny=dx/L;
+  return {a:{x:a.x+nx*off,y:a.y+ny*off,z:a.z||0}, b:{x:b.x+nx*off,y:b.y+ny*off,z:b.z||0}};
+}
+function drawWallLine2D(s,sel){
+  const cls=wallStrokeClass(s,sel);
+  const th=Number(s.thickness)||wallThickness(s.wallType||'interior');
+  if(!isOpening(s) && s.doubleLine && th>0.03){
+    const seg1=offsetSegmentWorld(s.a,s.b,th/2), seg2=offsetSegmentWorld(s.a,s.b,-th/2);
+    addLine(world2D(seg1.a),world2D(seg1.b),cls,s.id);
+    addLine(world2D(seg2.a),world2D(seg2.b),cls,s.id);
+    if(sel)addLine(world2D(s.a),world2D(s.b),'wall-center selected',s.id);
+    return;
+  }
+  addLine(world2D(s.a),world2D(s.b),cls,s.id);
+}
+
+
+function openingDir(o){const dx=o.b.x-o.a.x, dy=o.b.y-o.a.y, L=Math.hypot(dx,dy)||1;return {dx:dx/L,dy:dy/L,L}}
+function openingNormal(o){const d=openingDir(o);return {nx:-d.dy, ny:d.dx}}
+function addDoorSymbol2D(o,sel=false){
+  const A=world2D(o.a), B=world2D(o.b);
+  const n=openingNormal(o);
+  const w=Math.hypot(B.x-A.x,B.y-A.y);
+  const hingeAtEnd=o.doorHinge==='end';
+  const hinge=hingeAtEnd?B:A;
+  const close=hingeAtEnd?A:B;
+  const swingSign=Number(o.doorSwingSign||1);
+  const open={x:hinge.x+n.nx*w*swingSign, y:hinge.y-n.ny*w*swingSign};
+  addLine({x:hinge.x,y:hinge.y}, close, sel?'door-leaf selected':'door-leaf', o.id);
+  addLine({x:hinge.x,y:hinge.y}, open, sel?'door-leaf selected':'door-leaf', o.id);
+  const r=w;
+  const sweep=(swingSign>0)?1:0;
+  const arc=`M ${close.x} ${close.y} A ${r} ${r} 0 0 ${sweep} ${open.x} ${open.y}`;
+  addPath(arc, sel?'door-arc selected':'door-arc', o.id);
+  addLine({x:A.x,y:A.y},{x:B.x,y:B.y}, sel?'door-gap selected':'door-gap', o.id);
+}
+function addWindowSymbol2D(o,sel=false){
+  const A=world2D(o.a), B=world2D(o.b);
+  const d=openingDir(o), n=openingNormal(o);
+  const mx=(A.x+B.x)/2, my=(A.y+B.y)/2;
+  const len=Math.hypot(B.x-A.x,B.y-A.y);
+  const off=Math.min(10,Math.max(5,len*0.10));
+  addLine(A,B,sel?'window-gap selected':'window-gap',o.id);
+  addLine({x:A.x+n.nx*off,y:A.y-n.ny*off},{x:A.x-n.nx*off,y:A.y+n.ny*off},sel?'window-mark selected':'window-mark',o.id);
+  addLine({x:B.x+n.nx*off,y:B.y-n.ny*off},{x:B.x-n.nx*off,y:B.y+n.ny*off},sel?'window-mark selected':'window-mark',o.id);
+  addLine({x:mx+n.nx*off*0.8,y:my-n.ny*off*0.8},{x:mx-n.nx*off*0.8,y:my+n.ny*off*0.8},sel?'window-mark selected':'window-mark',o.id);
+}
+function drawOpening2D(o,sel=false){
+  if(o.openingType==='door') addDoorSymbol2D(o,sel); else addWindowSymbol2D(o,sel);
+}
+function drawOpening3D(o,sel=false){
+  const cls=sel?'edge selected':(o.openingType==='door'?'door-line':'window-line');
+  addLine(project(o.a),project(o.b),cls,o.id);
+}
+function pointAlong(a,b,t,z=null){return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:z===null?(a.z||0)+( (b.z||0)-(a.z||0) )*t:z}}
+function openingsOnWallSegment(a,b,wallType=null){
+  const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;
+  const ux=dx/L, uy=dy/L;
+  const tolDist=0.12;
+  const tolEnd=0.02;
+  return S.shapes.filter(o=>o.kind==='line'&&o.openingType).map(o=>{
+    const t1=((o.a.x-a.x)*ux+(o.a.y-a.y)*uy)/L;
+    const t2=((o.b.x-a.x)*ux+(o.b.y-a.y)*uy)/L;
+    const start=Math.max(0,Math.min(t1,t2)), end=Math.min(1,Math.max(t1,t2));
+    const c={x:(o.a.x+o.b.x)/2,y:(o.a.y+o.b.y)/2};
+    const tc=((c.x-a.x)*ux+(c.y-a.y)*uy)/L;
+    const perp=Math.abs((c.x-a.x)*(-uy)+(c.y-a.y)*(ux));
+    if(perp>tolDist || end<tolEnd || start>1-tolEnd) return null;
+    return {...o,start,end,center:tc,width:L*(end-start)};
+  }).filter(Boolean).sort((p,q)=>p.start-q.start);
+}
+
 function grid2D(){for(let x=0;x<=1200;x+=44)svg.append(el('line',{x1:x,y1:0,x2:x,y2:760,class:'grid-line'}));for(let y=0;y<=760;y+=44)svg.append(el('line',{x1:0,y1:y,x2:1200,y2:y,class:'grid-line'}));svg.append(el('line',{x1:ORIGIN.x,y1:0,x2:ORIGIN.x,y2:760,class:'axis-x'}));svg.append(el('line',{x1:0,y1:ORIGIN.y,x2:1200,y2:ORIGIN.y,class:'axis-y'}))}
 function grid3D(){if(!S.layers.terrain)return;svg.append(el('rect',{x:0,y:0,width:1200,height:385,fill:'#bce4f1'}));svg.append(el('rect',{x:0,y:385,width:1200,height:375,fill:'#bfd9ad'}));for(let i=-10;i<=10;i++){addLine(project({x:-10,y:i,z:0}),project({x:10,y:i,z:0}),'grid-line','');addLine(project({x:i,y:-10,z:0}),project({x:i,y:10,z:0}),'grid-line','')}addLine(project({x:-6,y:0,z:0}),project({x:6,y:0,z:0}),'axis-x','');addLine(project({x:0,y:-6,z:0}),project({x:0,y:6,z:0}),'axis-y','');addLine(project({x:0,y:0,z:0}),project({x:0,y:0,z:4}),'axis-z','')}
 function renderImage(){if(!S.image||!S.layers.image||S.mode!=='2d')return;const x=ORIGIN.x+S.view2d.panX+S.image.x*SCALE,y=ORIGIN.y+S.view2d.panY-S.image.y*SCALE,w=S.image.w*S.image.scale,h=S.image.h*S.image.scale;svg.append(el('image',{href:S.image.src,x,y,width:w,height:h,class:'imported-image'}));if(S.calibration?.points?.length){const pts=S.calibration.points.map(world2D);if(pts.length===2)addLine(pts[0],pts[1],'calib-line','');pts.forEach(p=>svg.append(el('circle',{cx:p.x,cy:p.y,r:7,class:'calib-point'})))}}
-function drawShape2D(s,preview=false){const sel=S.selected.includes(s.id),cls=preview?'shape-preview':('shape-base'+(sel?' selected':''));if(s.kind==='line'){addLine(world2D(s.a),world2D(s.b),sel?'edge selected':(s.wallType==='exterior'?'wall-ext':'wall-int'),s.id);return}addPoly(pointsOf(s).map(world2D),cls,s.id);if(!preview)addText(centroid(pointsOf(s)),s.name,sel)}
+
+function drawShape2D(s,preview=false){
+  const sel=S.selected.includes(s.id),cls=preview?'shape-preview':('shape-base'+(sel?' selected':''));
+  if(s.kind==='line'){
+    if(preview)addLine(world2D(s.a),world2D(s.b),'shape-preview',s.id);
+    else if(isOpening(s)) drawOpening2D(s,sel);
+    else drawWallLine2D(s,sel);
+    if(!preview && !isOpening(s)) addText({x:(s.a.x+s.b.x)/2,y:(s.a.y+s.b.y)/2,z:0},s.name,sel);
+    if(!preview && isOpening(s)) addText({x:(s.a.x+s.b.x)/2,y:(s.a.y+s.b.y)/2,z:0},s.openingType==='door'?'Porta':'Janela',sel);
+    return;
+  }
+  addPoly(pointsOf(s).map(world2D),cls,s.id);
+  if(!preview)addText(centroid(pointsOf(s)),s.name,sel)
+}
 function facesOf(s){const base=pointsOf(s),h=s.height||0;if(!isClosed(s)||h<=0.001)return[];const top=base.map(p=>({...p,z:h})),faces=[];for(let i=0;i<base.length;i++){const j=(i+1)%base.length;faces.push({type:'side',pts:[base[i],base[j],top[j],top[i]]})}faces.push({type:'top',pts:top});return faces}
 function avgDepth(f){return f.pts.reduce((a,p)=>a+project(p).depth,0)/f.pts.length}
-function drawShape3D(s,preview=false){const sel=S.selected.includes(s.id);if(s.kind==='line'){addLine(project(s.a),project(s.b),sel?'edge selected':'edge',s.id);return}if(!s.height||s.height<=0.001){addPoly(pointsOf(s).map(project),preview?'shape-preview':('shape-base'+(sel?' selected':'')),s.id);if(!preview)addText(centroid(pointsOf(s)),s.name,sel);return}facesOf(s).sort((a,b)=>avgDepth(a)-avgDepth(b)).forEach(f=>addPoly(f.pts.map(project),'face '+(f.type==='top'?'top':'side')+(sel?' selected':''),s.id));addText({...centroid(pointsOf(s)),z:s.height},s.name+' · '+n(s.height)+' m',sel)}
+
+function drawShape3D(s,preview=false){
+  const sel=S.selected.includes(s.id);
+  if(s.kind==='line'){
+    if(isOpening(s)) drawOpening3D(s,sel); else addLine(project(s.a),project(s.b),wallStrokeClass(s,sel),s.id);
+    return;
+  }
+  if(!s.height||s.height<=0.001){
+    addPoly(pointsOf(s).map(project),preview?'shape-preview':('shape-base'+(sel?' selected':'')),s.id);
+    if(!preview)addText(centroid(pointsOf(s)),s.name,sel);return
+  }
+  facesOf(s).sort((a,b)=>avgDepth(a)-avgDepth(b)).forEach(f=>addPoly(f.pts.map(project),'face '+(f.type==='top'?'top':'side')+(sel?' selected':''),s.id));
+  addText({...centroid(pointsOf(s)),z:s.height},s.name+' · '+n(s.height)+' m',sel)
+}
 function drawProfiles(){
   if(!S.layers.lsf)return;
   S.profiles.forEach(p=>{
@@ -178,6 +357,48 @@ function groupRuns(values,threshold,minWidth=1){
   if(start>=0&&values.length-start>=minWidth)groups.push({a:start,b:values.length-1,mid:(start+values.length-1)/2,max:Math.max(...values.slice(start))});
   return groups;
 }
+
+function smooth1D(arr,r=2){
+  const out=new Array(arr.length).fill(0);
+  for(let i=0;i<arr.length;i++){
+    let s=0,c=0;
+    for(let k=-r;k<=r;k++){
+      const j=i+k;
+      if(j>=0&&j<arr.length){s+=arr[j];c++;}
+    }
+    out[i]=s/(c||1);
+  }
+  return out;
+}
+function mergeSegments(segs,tol=0.12){
+  const out=[];
+  segs.forEach(s=>{
+    const vertical=Math.abs(s.a.x-s.b.x)<Math.abs(s.a.y-s.b.y);
+    let hit=false;
+    for(const o of out){
+      const ov=Math.abs(o.a.x-o.b.x)<Math.abs(o.a.y-o.b.y);
+      if(vertical!==ov)continue;
+      if(vertical){
+        if(Math.abs(((o.a.x+o.b.x)/2)-((s.a.x+s.b.x)/2))<=tol){
+          const ys=[o.a.y,o.b.y,s.a.y,s.b.y].sort((a,b)=>a-b);
+          o.a={x:(o.a.x+o.b.x)/2,y:ys[0],z:0};
+          o.b={x:(o.a.x+o.b.x)/2,y:ys[3],z:0};
+          hit=true;break;
+        }
+      }else{
+        if(Math.abs(((o.a.y+o.b.y)/2)-((s.a.y+s.b.y)/2))<=tol){
+          const xs=[o.a.x,o.b.x,s.a.x,s.b.x].sort((a,b)=>a-b);
+          o.a={x:xs[0],y:(o.a.y+o.b.y)/2,z:0};
+          o.b={x:xs[3],y:(o.a.y+o.b.y)/2,z:0};
+          hit=true;break;
+        }
+      }
+    }
+    if(!hit)out.push(JSON.parse(JSON.stringify(s)));
+  });
+  return out;
+}
+
 function getDarkMap(canvas){
   const ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height, data=ctx.getImageData(0,0,w,h).data;
   const dark=new Uint8Array(w*h);
@@ -216,52 +437,117 @@ function detectBuildingBox(map){
   }
   return {x1:minX,y1:minY,x2:maxX,y2:maxY};
 }
-function detectWallSegments(map,box,widthM,heightM){
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function detectArcNearGap(map,orientation,linePx,fromPx,toPx,bandA,bandB){
+  const {dark,w,h}=map;
+  const pad=18;
+  let minX,maxX,minY,maxY;
+  if(orientation==='vertical'){
+    minX=Math.max(0,bandA-pad); maxX=Math.min(w-1,bandB+pad);
+    minY=Math.max(0,fromPx-pad); maxY=Math.min(h-1,toPx+pad);
+  }else{
+    minX=Math.max(0,fromPx-pad); maxX=Math.min(w-1,toPx+pad);
+    minY=Math.max(0,bandA-pad); maxY=Math.min(h-1,bandB+pad);
+  }
+  let cnt=0, tot=0;
+  for(let y=minY;y<=maxY;y++){
+    for(let x=minX;x<=maxX;x++){
+      const insideCore = orientation==='vertical' ? (x>=bandA&&x<=bandB&&y>=fromPx&&y<=toPx) : (y>=bandA&&y<=bandB&&x>=fromPx&&x<=toPx);
+      if(insideCore) continue;
+      tot++;
+      if(dark[y*w+x])cnt++;
+    }
+  }
+  return cnt/Math.max(1,tot) > 0.018;
+}
+function detectWallAndOpenings(map,box,widthM,heightM){
   const {dark,w,h}=map;
   const x1=Math.max(0,Math.floor(box.x1)),x2=Math.min(w-1,Math.ceil(box.x2));
   const y1=Math.max(0,Math.floor(box.y1)),y2=Math.min(h-1,Math.ceil(box.y2));
   const bw=x2-x1,bh=y2-y1;
   const col=new Array(bw).fill(0), row=new Array(bh).fill(0);
-  for(let y=y1;y<=y2;y++){
-    for(let x=x1;x<=x2;x++){
-      if(dark[y*w+x]){col[x-x1]++;row[y-y1]++}
-    }
+  for(let y=y1;y<=y2;y++) for(let x=x1;x<=x2;x++) if(dark[y*w+x]){col[x-x1]++;row[y-y1]++;}
+  const colS=smooth1D(col,2), rowS=smooth1D(row,2);
+  const vGroups=groupRuns(colS,bh*0.018,1).filter(g=>g.max>bh*0.024);
+  const hGroups=groupRuns(rowS,bw*0.018,1).filter(g=>g.max>bw*0.024);
+  const segs=[], openings=[];
+  function pxToWorld(px,py){return {x:(px-x1)/bw*widthM-widthM/2, y:heightM/2-(py-y1)/bh*heightM, z:0};}
+  function thMeters(px,orient){
+    const raw = orient==='vertical' ? (px/bw*widthM) : (px/bh*heightM);
+    return clamp(raw,0.07,0.28);
   }
-  const vGroups=groupRuns(col,bh*0.045,2).filter(g=>g.max>bh*0.07);
-  const hGroups=groupRuns(row,bw*0.045,2).filter(g=>g.max>bw*0.07);
-  const segs=[];
-  function pxToWorld(px,py){
-    return {x:(px-x1)/bw*widthM-widthM/2, y:heightM/2-(py-y1)/bh*heightM, z:0};
+  function addSeg(orientation,bandA,bandB,start,end){
+    const thickness=thMeters((bandB-bandA+1),orientation);
+    const center=Math.round((bandA+bandB)/2);
+    const a=orientation==='vertical'?pxToWorld(center,start):pxToWorld(start,center);
+    const b=orientation==='vertical'?pxToWorld(center,end):pxToWorld(end,center);
+    segs.push({a,b,orientation,thickness,doubleLine:thickness>=0.09,bandA,bandB,startPx:start,endPx:end});
   }
-  vGroups.forEach(g=>{
-    const x=Math.round(x1+g.mid), bandA=Math.max(x1,Math.floor(x1+g.a-2)), bandB=Math.min(x2,Math.ceil(x1+g.b+2));
-    let start=-1;
-    for(let y=y1;y<=y2;y++){
-      let cnt=0;for(let xx=bandA;xx<=bandB;xx++)cnt+=dark[y*w+xx];
-      if(cnt>=Math.max(1,(bandB-bandA+1)*0.25)){if(start<0)start=y}
-      else if(start>=0){if(y-start>bh*0.08){const a=pxToWorld(x,start),b=pxToWorld(x,y-1);segs.push({a,b})}start=-1}
-    }
-    if(start>=0&&y2-start>bh*0.08){const a=pxToWorld(x,start),b=pxToWorld(x,y2);segs.push({a,b})}
+  function addOpening(orientation,bandA,bandB,fromPx,toPx){
+    const lenM = orientation==='vertical' ? ((toPx-fromPx)/bh*heightM) : ((toPx-fromPx)/bw*widthM);
+    if(lenM<0.40 || lenM>2.80) return;
+    const center=Math.round((bandA+bandB)/2);
+    const a=orientation==='vertical'?pxToWorld(center,fromPx):pxToWorld(fromPx,center);
+    const b=orientation==='vertical'?pxToWorld(center,toPx):pxToWorld(toPx,center);
+    const nearBoundary = orientation==='vertical' ? (Math.abs(center-x1)<(bw*0.09)||Math.abs(center-x2)<(bw*0.09)) : (Math.abs(center-y1)<(bh*0.09)||Math.abs(center-y2)<(bh*0.09));
+    const arc=detectArcNearGap(map,orientation,center,fromPx,toPx,bandA,bandB);
+    let openingType='window';
+    if(arc) openingType='door';
+    else if(!nearBoundary && lenM>=0.55 && lenM<=1.30) openingType='door';
+    else if(nearBoundary && lenM>=0.45) openingType='window';
+    else if(lenM<0.55) openingType='window';
+    else openingType='door';
+    openings.push({a,b,orientation,openingType,lengthM:lenM,autoDetected:true});
+  }
+  function scanBands(groups,orientation){
+    groups.forEach(g=>{
+      const startBand = orientation==='vertical' ? x1+g.a : y1+g.a;
+      const endBand = orientation==='vertical' ? x1+g.b : y1+g.b;
+      const spanA=Math.max(orientation==='vertical'?x1:y1,Math.floor(startBand-3));
+      const spanB=Math.min(orientation==='vertical'?x2:y2,Math.ceil(endBand+3));
+      const s0=orientation==='vertical'?y1:x1, s1=orientation==='vertical'?y2:x2;
+      let start=-1,gaps=0,wallRuns=[];
+      for(let p=s0;p<=s1;p++){
+        let cnt=0;
+        if(orientation==='vertical') for(let xx=spanA;xx<=spanB;xx++) cnt+=dark[p*w+xx];
+        else for(let yy=spanA;yy<=spanB;yy++) cnt+=dark[yy*w+p];
+        const on = cnt>=Math.max(1,(spanB-spanA+1)*0.14);
+        if(on){ if(start<0) start=p; gaps=0; }
+        else if(start>=0){ gaps++; if(gaps>4){ const end=p-gaps; if(end-start>(orientation==='vertical'?bh:bw)*0.03) wallRuns.push([start,end]); start=-1; gaps=0; } }
+      }
+      if(start>=0 && s1-start>(orientation==='vertical'?bh:bw)*0.03) wallRuns.push([start,s1]);
+      wallRuns.forEach(r=>addSeg(orientation,spanA,spanB,r[0],r[1]));
+      for(let i=0;i<wallRuns.length-1;i++){
+        const gapA=wallRuns[i][1], gapB=wallRuns[i+1][0];
+        if(gapB-gapA>4) addOpening(orientation,spanA,spanB,gapA,gapB);
+      }
+    });
+  }
+  scanBands(vGroups,'vertical');
+  scanBands(hGroups,'horizontal');
+  let clean=segs.filter(s=>Math.hypot(s.b.x-s.a.x,s.b.y-s.a.y)>=0.35);
+  clean=mergeSegments(clean,0.14).map(s=>{
+    const src=segs.find(t=>Math.abs(t.a.x-s.a.x)<0.2&&Math.abs(t.a.y-s.a.y)<0.4&&Math.abs(t.b.x-s.b.x)<0.2&&Math.abs(t.b.y-s.b.y)<0.4) || {};
+    return {...s, orientation:src.orientation||((Math.abs(s.a.x-s.b.x)<Math.abs(s.a.y-s.b.y))?'vertical':'horizontal'), thickness:src.thickness||0.10, doubleLine:(src.doubleLine!==undefined?src.doubleLine:(src.thickness||0.10)>=0.09)};
   });
-  hGroups.forEach(g=>{
-    const y=Math.round(y1+g.mid), bandA=Math.max(y1,Math.floor(y1+g.a-2)), bandB=Math.min(y2,Math.ceil(y1+g.b+2));
-    let start=-1;
-    for(let x=x1;x<=x2;x++){
-      let cnt=0;for(let yy=bandA;yy<=bandB;yy++)cnt+=dark[yy*w+x];
-      if(cnt>=Math.max(1,(bandB-bandA+1)*0.25)){if(start<0)start=x}
-      else if(start>=0){if(x-start>bw*0.08){const a=pxToWorld(start,y),b=pxToWorld(x-1,y);segs.push({a,b})}start=-1}
-    }
-    if(start>=0&&x2-start>bw*0.08){const a=pxToWorld(start,y),b=pxToWorld(x2,y);segs.push({a,b})}
+  const unique=[];
+  clean.forEach(s=>{
+    const key=[Math.round(s.a.x*20),Math.round(s.a.y*20),Math.round(s.b.x*20),Math.round(s.b.y*20)].join('|');
+    const rkey=[Math.round(s.b.x*20),Math.round(s.b.y*20),Math.round(s.a.x*20),Math.round(s.a.y*20)].join('|');
+    if(!unique.some(u=>u.key===key||u.key===rkey)) unique.push({...s,key});
   });
-  // remove tiny/duplicate segments
-  const clean=[];
-  segs.forEach(s=>{
-    const L=Math.hypot(s.b.x-s.a.x,s.b.y-s.a.y);
-    if(L<0.45)return;
-    const key=[n(s.a.x,1),n(s.a.y,1),n(s.b.x,1),n(s.b.y,1)].join('|');
-    if(!clean.some(c=>c.key===key))clean.push({...s,key});
+  const uniqOpen=[];
+  openings.forEach(o=>{
+    const key=[o.openingType,Math.round(o.a.x*20),Math.round(o.a.y*20),Math.round(o.b.x*20),Math.round(o.b.y*20)].join('|');
+    const rkey=[o.openingType,Math.round(o.b.x*20),Math.round(o.b.y*20),Math.round(o.a.x*20),Math.round(o.a.y*20)].join('|');
+    if(!uniqOpen.some(u=>u.key===key||u.key===rkey)) uniqOpen.push({...o,key});
   });
-  return clean.slice(0,80);
+  return {segments:unique.slice(0,220), openings:uniqOpen.slice(0,80)};
+}
+
+function detectWallSegments(map,box,widthM,heightM){
+  return detectWallAndOpenings(map,box,widthM,heightM).segments;
 }
 async function detectDimensionsOCR(){
   if(!S.image || !window.Tesseract)return {};
@@ -313,6 +599,7 @@ function dimensionsFromManualCalibration(box,canvas){
   return {widthM,heightM,source:'calibração manual por 2 pontos'};
 }
 
+
 async function autoDetectScaleAndDrawing(){
   if(!S.image)return msg('Importe primeiro a planta/imagem/PDF.');
   try{
@@ -330,7 +617,6 @@ async function autoDetectScaleAndDrawing(){
     let widthM=manualDims?manualDims.widthM:(Number(dims.width)||0);
     let heightM=manualDims?manualDims.heightM:(Number(dims.height)||0);
     if(manualDims){
-      // A escala manual manda. Só perguntamos se quiser corrigir visualmente o retângulo exterior.
       const ok=confirm('Escala por 2 pontos aplicada. Dimensão exterior estimada: '+n(widthM)+' x '+n(heightM)+' m.\n\nUsar esta dimensão?');
       if(!ok){
         widthM=Number(prompt('Largura exterior correta em metros:', n(widthM)))||widthM;
@@ -340,26 +626,38 @@ async function autoDetectScaleAndDrawing(){
       widthM=Number(prompt('Largura exterior da planta em metros:', widthM||'10.00'))||10;
       heightM=Number(prompt('Profundidade exterior em metros:', heightM||'7.00'))||7;
     }
-    // Remove previous auto-detected lines and rectangle
     S.shapes=S.shapes.filter(s=>!s.autoDetected);
     const rect={kind:'rect',a:{x:-widthM/2,y:-heightM/2,z:0},b:{x:widthM/2,y:heightM/2,z:0},height:Number(S.calc?.height)||2.7,wallType:'exterior',thickness:Number(S.calc.externalWall)||0.150,autoDetected:true};
     rect.id=uid('A');rect.name='Planta exterior auto '+n(widthM)+'x'+n(heightM)+' m';
     S.shapes.push(rect);
-    let segs=detectWallSegments(map,box,widthM,heightM);segs=segs.filter(s=>Math.hypot(s.b.x-s.a.x,s.b.y-s.a.y)<=Math.max(widthM,heightM)*1.05).slice(0,45);
+    const detected=detectWallAndOpenings(map,box,widthM,heightM);
+    let segs=detected.segments.filter(s=>Math.hypot(s.b.x-s.a.x,s.b.y-s.a.y)<=Math.max(widthM,heightM)*1.15);
     segs.forEach((s,i)=>{
-      const wt=classifySegmentWall(s.a,s.b,-1);const line={kind:'line',a:s.a,b:s.b,height:0,wallType:wt,thickness:wallThickness(wt),autoDetected:true,imported:true};
+      const wt=classifySegmentWall(s.a,s.b,-1);
+      const thickness=Number(s.thickness)||wallThickness(wt);
+      const line={kind:'line',a:s.a,b:s.b,height:0,wallType:wt,thickness,detectedThickness:thickness,doubleLine:(s.doubleLine!==undefined?s.doubleLine:(thickness>=0.09)),orientation:s.orientation,autoDetected:true,imported:true};
       line.id=uid('W');line.name='Parede auto '+(i+1);
       S.shapes.push(line);
     });
+    const openings=detected.openings.filter(o=>Math.hypot(o.b.x-o.a.x,o.b.y-o.a.y)>=0.40);
+    openings.forEach((o,i)=>{
+      const op={kind:'line',a:o.a,b:o.b,openingType:o.openingType,wallType:classifySegmentWall(o.a,o.b,-1),thickness:o.openingType==='door'?0.05:0.04,autoDetected:true,imported:true,doorHinge:'start',doorSwingSign:1};
+      op.id=uid(o.openingType==='door'?'D':'J');
+      op.name=(o.openingType==='door'?'Porta auto ':'Janela auto ')+(i+1);
+      setOpeningHeights(op,o.openingType==='door'?2.10:1.20,o.openingType==='window'?0.90:null);
+      S.shapes.push(op);
+    });
+    numberOpeningsByPanel();
     S.selected=S.shapes.filter(s=>s.autoDetected).map(s=>s.id);
     setMode('2d');render();panel();
-    msg('Desenho detetado pela escala 2 pontos: '+n(widthM)+' x '+n(heightM)+' m, '+segs.length+' linhas de parede/interiores. Reveja e gere LSF.');
+    const nDoors=openings.filter(o=>o.openingType==='door').length;
+    const nWindows=openings.filter(o=>o.openingType==='window').length;
+    msg('Auto desenho completo: '+n(widthM)+' x '+n(heightM)+' m, '+segs.length+' paredes, '+nDoors+' portas e '+nWindows+' janelas detetadas. Reveja e complete se necessário.');
   }catch(e){
     console.error(e);
     msg('Não foi possível detetar automaticamente. Use calibrar por dois pontos.');
   }
 }
-
 
 function hideImportedImage(){
   if(!S.image)return msg('Não existe imagem importada.');
@@ -392,16 +690,61 @@ function calibClick(w){if(!S.calibration)return;S.calibration.points.push(w);if(
 function saveProject(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));a.download='aloe_lsf360_projeto.json';a.click()}
 function openProject(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{Object.assign(S,JSON.parse(r.result));render();panel();msg('Projeto aberto.')}catch{msg('Ficheiro inválido.')}};r.readAsText(file)}
 function lineLength(o){return Math.hypot((o.b.x-o.a.x),(o.b.y-o.a.y),(o.b.z||0)-(o.a.z||0))}
+
 function generateProfilesForSegment(a,b,panel,kStart,height,spacing,wallType='exterior',thickness=0.150,studProfile=S.calc.studProfile,trackProfile=S.calc.trackProfile,studDims=null,trackDims=null){
   const out=[];let k=kStart;
-  out.push({id:uid('U'),kind:'profile',type:'Guia inferior',profile:trackProfile,name:panel+'-U'+k++,panel,wallType,thickness,profileDims:trackDims||defaultProfileDims(trackProfile),a:{...a,z:0},b:{...b,z:0}});
-  out.push({id:uid('U'),kind:'profile',type:'Guia superior',profile:trackProfile,name:panel+'-U'+k++,panel,wallType,thickness,profileDims:trackDims||defaultProfileDims(trackProfile),a:{...a,z:height},b:{...b,z:height}});
-  const L=Math.hypot(b.x-a.x,b.y-a.y), nStuds=Math.max(2,Math.floor(L/spacing)+1);
+  const L=Math.hypot(b.x-a.x,b.y-a.y);
+  const openings=openingsOnWallSegment(a,b,wallType).filter(o=>o.width>=0.35 && o.width<=3.0);
+  const addProfile=(type,p1,p2,profile=trackProfile,dims=null)=>out.push({id:uid(type.startsWith('M')?'C':'U'),kind:'profile',type,profile,name:panel+'-'+(type.startsWith('Montante')?'M':'U')+k++,panel,wallType,thickness,profileDims:dims||defaultProfileDims(profile),a:p1,b:p2});
+  const pt=(t,z)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z});
+  const addStudAt=(t,z0,z1,label='Montante')=>{const p=pt(t,z0);addProfile(label,p,{...p,z:z1},studProfile,studDims||defaultProfileDims(studProfile));};
+
+  // guias principais
+  let cursor=0;
+  openings.forEach(op=>{
+    if(op.openingType==='door'){
+      if(op.start>cursor+0.005) addProfile('Guia inferior',pt(cursor,0),pt(op.start,0),trackProfile,trackDims||defaultProfileDims(trackProfile));
+      cursor=Math.max(cursor,op.end);
+    }
+  });
+  if(cursor<1) addProfile('Guia inferior',pt(cursor,0),pt(1,0),trackProfile,trackDims||defaultProfileDims(trackProfile));
+  addProfile('Guia superior',pt(0,height),pt(1,height),trackProfile,trackDims||defaultProfileDims(trackProfile));
+
+  // montantes regulares com vãos respeitados
+  const nStuds=Math.max(2,Math.floor(L/spacing)+1);
   for(let j=0;j<nStuds;j++){
     const t=j/(nStuds-1);
-    const p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:0};
-    out.push({id:uid('C'),kind:'profile',type:'Montante',profile:studProfile,name:panel+'-M'+k++,panel,wallType,thickness,profileDims:studDims||defaultProfileDims(studProfile),a:p,b:{...p,z:height}});
+    const block=openings.find(op=>t>op.start+0.01 && t<op.end-0.01);
+    if(block) continue;
+    addStudAt(t,0,height,'Montante');
   }
+
+  // reforços de vãos
+  openings.forEach((op,oi)=>{
+    const w=op.end-op.start;
+    const clearHeight=op.openingType==='door'?Math.min(height-0.15, Number(op.openingHeight||2.10)) : Math.min(height-0.20, Number(op.openingHead||2.10));
+    const sillHeight=op.openingType==='window'?Math.max(0.60, Number(op.sillHeight||0.90)) : 0;
+    addStudAt(op.start,0,height,'Montante lateral vão');
+    addStudAt(op.end,0,height,'Montante lateral vão');
+    addProfile('Verga vão',pt(op.start,clearHeight),pt(op.end,clearHeight),trackProfile,trackDims||defaultProfileDims(trackProfile));
+    if(op.openingType==='window'){
+      addProfile('Peitoril janela',pt(op.start,sillHeight),pt(op.end,sillHeight),trackProfile,trackDims||defaultProfileDims(trackProfile));
+      const localL=(op.end-op.start)*L;
+      const inner=Math.max(1,Math.floor(localL/spacing)-1);
+      for(let i=1;i<=inner;i++){
+        const t=op.start+(w*i/(inner+1));
+        addStudAt(t,0,sillHeight,'Montante abaixo peitoril');
+        addStudAt(t,clearHeight,height,'Montante acima verga');
+      }
+    }else{
+      const localL=(op.end-op.start)*L;
+      const inner=Math.max(1,Math.floor(localL/spacing)-1);
+      for(let i=1;i<=inner;i++){
+        const t=op.start+(w*i/(inner+1));
+        addStudAt(t,clearHeight,height,'Montante acima verga');
+      }
+    }
+  });
   return {profiles:out,next:k};
 }
 
@@ -494,11 +837,14 @@ function generateLSF(){
   S.profiles=[];let k=1;
 
   const closed=S.shapes.filter(isClosed);
-  const allLines=S.shapes.filter(o=>o.kind==='line');
-  const selectedLines=S.selected.map(item).filter(o=>o&&o.kind==='line');
+  const allLines=S.shapes.filter(o=>o.kind==='line'&&!o.openingType);
+  const selectedLines=S.selected.map(item).filter(o=>o&&o.kind==='line'&&!o.openingType);
   const lines=selectedLines.length?selectedLines:allLines;
 
   let generatedClosed=0, generatedLines=0;
+
+  associateOpeningsToPanels(closed,lines);
+  numberOpeningsByPanel();
 
   // 1) contornos fechados: normalmente exterior
   closed.forEach((s,si)=>{
@@ -540,11 +886,11 @@ function generateLSF(){
 
   if(!generatedClosed&&!generatedLines)return msg('Desenhe/importa paredes exteriores ou interiores para gerar LSF.');
   setMode('3d');panel();
-  msg(S.profiles.length+' perfis LSF gerados: exterior + '+generatedLines+' linhas interiores/exteriores.');
+  msg(S.profiles.length+' perfis LSF gerados com vãos de portas/janelas aplicados nas paredes.');
 }
 function runCalc(){
   const panels=S.shapes.filter(isClosed);
-  const lines=S.shapes.filter(o=>o.kind==='line'&&lineLength(o)>=0.20);
+  const lines=S.shapes.filter(o=>o.kind==='line'&&!o.openingType&&lineLength(o)>=0.20);
   let areaTotal=0, wallLength=0, externalLength=0, internalLength=0, studs=0, tracks=0, source='';
 
   if(S.profiles.length){
@@ -603,15 +949,22 @@ function exportCSV(){
   if(S.profiles.length){
     S.profiles.forEach(p=>{const d=profileDimsOf(p);rows.push(['Aloe LSF 360',p.panel,p.name,p.type,p.wallType||'interior',((p.thickness||wallThickness(p.wallType))*1000).toFixed(0),p.profile,d.web,d.flange,d.lip,d.thickness,d.kgm,(lineLength(p)*1000).toFixed(1),'Perfil LSF individual selecionável']);});
   } else {
-    const closed=S.shapes.filter(isClosed);
-    const lines=S.shapes.filter(o=>o.kind==='line');
+    const closed=S.shapes.filter(isClosed), lines=S.shapes.filter(o=>o.kind==='line'&&!o.openingType);
     if(closed.length) closed.forEach((s,i)=>rows.push(['Aloe LSF 360','P'+(i+1),s.name,shapeName(s.kind),s.wallType||'exterior',((s.thickness||wallThickness(s.wallType||'exterior'))*1000).toFixed(0),'—','','','','','','',((s.height||0)*1000).toFixed(1),'Volume/base para estrutura']));
     if(lines.length) lines.forEach((l,i)=>rows.push(['Aloe LSF 360','L'+(i+1),l.name||('Linha '+(i+1)),'Linha/DXF',l.wallType||classifySegmentWall(l.a,l.b,-1),((l.thickness||wallThickness(l.wallType||classifySegmentWall(l.a,l.b,-1)))*1000).toFixed(0),'—','','','','','','',(lineLength(l)*1000).toFixed(1),'Linha usada como eixo de parede; altura '+n(wallHeightOf(l))+' m; espaçamento '+n(wallSpacingOf(l))+' m']));
+  }
+  const openings=openingMapRows();
+  if(openings.length){
+    rows.push([]);
+    rows.push(['MAPA DE VÃOS','CODIGO_VAO','PAINEL','PAREDE_REF','REFERENCIA','TIPO','TIPO_PAREDE','LARGURA_MM','ALTURA_MM','PEITORIL_MM','CABEÇA_VÃO_MM','LADO_ABERTURA','ORIGEM']);
+    openings.forEach(r=>rows.push(r));
   }
   if(S.calc.results){
     rows.push([]);
     rows.push(['PRE-CALCULO','','Origem',S.calc.results.source,'—','—','—','—','Estimativo']);
-    rows.push(['PRE-CALCULO','','Comprimento paredes','m','total','—','—',n(S.calc.results.wallLength),'Estimativo']);rows.push(['PRE-CALCULO','','Paredes exteriores','m','exterior',((S.calc.results.externalWall||S.calc.externalWall)*1000).toFixed(0),'—',n(S.calc.results.externalLength),'Estimativo']);rows.push(['PRE-CALCULO','','Paredes interiores','m','interior',((S.calc.results.internalWall||S.calc.internalWall)*1000).toFixed(0),'—',n(S.calc.results.internalLength),'Estimativo']);
+    rows.push(['PRE-CALCULO','','Comprimento paredes','m','total','—','—',n(S.calc.results.wallLength),'Estimativo']);
+    rows.push(['PRE-CALCULO','','Paredes exteriores','m','exterior',((S.calc.results.externalWall||S.calc.externalWall)*1000).toFixed(0),'—',n(S.calc.results.externalLength),'Estimativo']);
+    rows.push(['PRE-CALCULO','','Paredes interiores','m','interior',((S.calc.results.internalWall||S.calc.internalWall)*1000).toFixed(0),'—',n(S.calc.results.internalLength),'Estimativo']);
     rows.push(['PRE-CALCULO','','Montantes','un','—','—',S.calc.studProfile,S.calc.results.studs,'Estimativo']);
     rows.push(['PRE-CALCULO','','Guias','un','—','—',S.calc.trackProfile,S.calc.results.tracks,'Estimativo']);
     rows.push(['PRE-CALCULO','','Massa estimada','kg','—','—','—',n(S.calc.results.mass),'Indicativo']);
@@ -619,7 +972,7 @@ function exportCSV(){
   if(rows.length===1)return msg('Sem dados para CSV.');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n')],{type:'text/csv;charset=utf-8'}));
-  a.download='aloe_lsf360_fabrico.csv';a.click();msg('CSV gerado.');
+  a.download='aloe_lsf360_fabrico.csv';a.click();msg('CSV gerado com mapa de vãos.');
 }
 
 function signedData(){
@@ -713,7 +1066,55 @@ function printSignedDossier(){
   w.document.close();w.focus();w.print();
 }
 
-function panel(){const p=$('#panelBody'),sel=S.selected.map(item).filter(Boolean);if(S.tab==='entity'){p.innerHTML=`<div class="card"><h3>Propriedades</h3>${sel.length?`<p><b>${sel.length} elemento(s) selecionado(s)</b></p><p>Referência: ${sel[0].name}</p><p>Tipo: ${sel[0].kind==='profile'?sel[0].type:shapeName(sel[0].kind)}</p><p>Perfil: ${sel[0].profile||'—'}</p><p>Tipo de parede: ${sel[0].wallType||'—'} · largura: ${sel[0].thickness?((sel[0].thickness*1000).toFixed(0)+' mm'):'—'}</p><p>Altura personalizada: ${wallHeightOf(sel[0])} m · Espaçamento: ${wallSpacingOf(sel[0])} m</p><p>Perfis: ${wallStudProfileOf(sel[0])} / ${wallTrackProfileOf(sel[0])}</p><p>Medidas perfil: alma ${profileDimsOf(sel[0]).web} mm · aba ${profileDimsOf(sel[0]).flange} mm · lábio ${profileDimsOf(sel[0]).lip} mm · esp. ${profileDimsOf(sel[0]).thickness} mm</p><p>Altura: ${sel[0].height?n(sel[0].height)+' m':'—'}</p>`:'<p>Selecione um objeto no desenho ou na lista.</p>'}</div><div class="card"><h3>Objetos do projeto</h3><div class="list">${items().map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.kind==='profile'?o.type:shapeName(o.kind)} · ${o.wallType||'—'} · ${o.thickness?((o.thickness*1000).toFixed(0)+' mm'):''} · ${o.profile||'—'}</small></div><button data-pick="${o.id}">Selecionar</button></div>`).join('')||'<p>Nenhum objeto criado.</p>'}</div></div>`;$$('[data-pick]').forEach(b=>b.onclick=()=>select(item(b.dataset.pick),S.multi))}
+function renderEntityPanel(p,sel){
+  const first=sel[0];
+  let html='<div class="card"><h3>Propriedades</h3>';
+  if(sel.length){
+    html+='<p><b>'+sel.length+' elemento(s) selecionado(s)</b></p>';
+    html+='<p>Referência: '+first.name+'</p>';
+    html+='<p>Tipo: '+(first.kind==='profile'?first.type:shapeName(first.kind))+'</p>';
+    html+='<p>Perfil: '+(first.profile||'—')+'</p>';
+    html+='<p>Tipo de parede: '+(first.wallType||'—')+' · largura: '+(first.thickness?((first.thickness*1000).toFixed(0)+' mm'):'—')+'</p>';
+    if(first.openingType){
+      html+='<p>Abertura: '+(first.openingType==='door'?'Porta':'Janela')+' · Código: '+(first.openingCode||'por gerar')+'</p>';
+      html+='<p>Largura do vão: '+n(openingWidthOf(first),2)+' m · Altura: '+n(openingHeightOf(first),2)+' m</p>';
+      if(first.openingType==='window') html+='<p>Peitoril: '+n(sillHeightOf(first),2)+' m · Cabeça do vão: '+n(headHeightOf(first),2)+' m</p>';
+      else html+='<p>Lado de abertura: '+(first.doorHinge==='end'?'Direita':'Esquerda')+' · Arco '+(Number(first.doorSwingSign||1)>0?'normal':'invertido')+'</p>';
+    }
+    html+='<p>Altura personalizada: '+wallHeightOf(first)+' m · Espaçamento: '+wallSpacingOf(first)+' m</p>';
+    html+='<p>Perfis: '+wallStudProfileOf(first)+' / '+wallTrackProfileOf(first)+'</p>';
+    const d=profileDimsOf(first); html+='<p>Medidas perfil: alma '+d.web+' mm · aba '+d.flange+' mm · lábio '+d.lip+' mm · esp. '+d.thickness+' mm</p>';
+    html+='<p>Altura: '+(first.height?n(first.height)+' m':'—')+'</p>';
+  }else html+='<p>Selecione um objeto no desenho ou na lista.</p>';
+  html+='</div>';
+  if(first&&first.openingType){
+    html+='<div class="card"><h3>Editar vão</h3><p>Ajuste manualmente largura/altura do vão e, no caso das portas, o lado de abertura.</p><div class="wall-editor-grid">';
+    html+='<div class="field"><label>Largura do vão (m)</label><input id="openWidth" type="number" step="0.01" value="'+n(openingWidthOf(first),2)+'"></div>';
+    html+='<div class="field"><label>Altura do vão (m)</label><input id="openHeight" type="number" step="0.01" value="'+n(openingHeightOf(first),2)+'"></div>';
+    if(first.openingType==='window'){
+      html+='<div class="field"><label>Peitoril (m)</label><input id="openSill" type="number" step="0.01" value="'+n(sillHeightOf(first),2)+'"></div>';
+      html+='<div class="field"><label>Cabeça do vão (m)</label><input id="openHead" type="number" step="0.01" value="'+n(headHeightOf(first),2)+'" readonly></div>';
+    } else {
+      html+='<div class="field"><label>Lado de abertura</label><select id="doorHinge"><option value="start">Esquerda</option><option value="end">Direita</option></select></div>';
+      html+='<div class="field"><label>Sentido do arco</label><select id="doorSwing"><option value="1">Normal</option><option value="-1">Invertido</option></select></div>';
+    }
+    html+='</div><div class="btns"><button class="btn green" id="applyOpeningEdit">Aplicar ao vão</button></div><div class="wall-editor-note">Depois de alterar o vão, clique em <b>Gerar LSF</b> para atualizar os perfis e reforços em torno da abertura.</div></div>';
+  }
+  html+='<div class="card"><h3>Objetos do projeto</h3><div class="list">';
+  html += items().map(o=>'<div class="row '+(S.selected.includes(o.id)?'active':'')+'"><div><b>'+o.name+'</b><small>'+(o.kind==='profile'?o.type:shapeName(o.kind))+' · '+(o.wallType||'—')+' · '+(o.thickness?((o.thickness*1000).toFixed(0)+' mm'):'')+' · '+(o.profile||'—')+(o.openingType?(' · '+(o.openingType==='door'?'porta':'janela')):'')+'</small></div><button data-pick="'+o.id+'">Selecionar</button></div>').join('') || '<p>Nenhum objeto criado.</p>';
+  html+='</div></div>';
+  p.innerHTML=html;
+  $$('[data-pick]').forEach(b=>b.onclick=()=>select(item(b.dataset.pick),S.multi));
+  if(first&&first.openingType&&$('#applyOpeningEdit')){
+    if(first.openingType==='door'){$('#doorHinge').value=first.doorHinge||'start';$('#doorSwing').value=String(Number(first.doorSwingSign||1));}
+    const syncHead=()=>{if($('#openSill')&&$('#openHeight')&&$('#openHead'))$('#openHead').value=(Number($('#openSill').value||0)+Number($('#openHeight').value||0)).toFixed(2)};
+    if($('#openSill')) $('#openSill').oninput=syncHead;
+    if($('#openHeight')) $('#openHeight').oninput=syncHead;
+    $('#applyOpeningEdit').onclick=()=>{const targets=S.selected.map(item).filter(o=>o&&o.openingType); if(!targets.length)return msg('Selecione uma porta ou janela.'); const w=Number($('#openWidth').value)||openingWidthOf(first); const h=Number($('#openHeight').value)||openingHeightOf(first); const sh=$('#openSill')?Number($('#openSill').value||0):null; targets.forEach(o=>{setOpeningWidth(o,w); setOpeningHeights(o,h,sh); if(o.openingType==='door'){o.doorHinge=$('#doorHinge').value; o.doorSwingSign=Number($('#doorSwing').value)||1;}}); numberOpeningsByPanel(); render(); panel(); msg('Vão atualizado manualmente e renumerado por painel.');};
+  }
+}
+
+function panel(){const p=$('#panelBody'),sel=S.selected.map(item).filter(Boolean);if(S.tab==='entity'){renderEntityPanel(p,sel)}
 if(S.tab==='image'){p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>Importa imagem, PDF ou DXF. DWG é indicado para conversão, pois o navegador não lê DWG nativo. Depois calibre a escala e desenhe por cima.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar por 2 pontos</button><button class="btn" id="autoImg">Auto desenho</button><button class="btn" id="hideImg">Ocultar imagem</button><button class="btn danger" id="deleteImg">Apagar imagem</button></div>${S.image?`<p><b>Imagem carregada.</b> ${S.image.calibrated?'Escala definida por 2 pontos.':'Ainda sem calibração manual.'} Escala visual: ${n(S.image.scale,3)}</p>`:'<p>Nenhuma imagem carregada.</p>'}<div class="image-action-note">Depois do Auto desenho pode ocultar ou apagar a imagem/planta importada. As paredes e perfis gerados continuam no projeto.</div></div><div class="card"><h3>Fluxo</h3><p>1. Importar imagem/PDF<br>2. Calibrar por 2 pontos com medida real<br>3. Usar Auto desenho ou desenhar manualmente<br>4. Gerar LSF<br>5. Selecionar perfis<br>6. Pré-cálculo<br>7. CSV</p></div>`;$('#importImg').onclick=()=>$('#imageInput').click();$('#calibImg').onclick=startCalib;$('#autoImg').onclick=autoDetectScaleAndDrawing;$('#hideImg').onclick=hideImportedImage;$('#deleteImg').onclick=deleteImportedImage}
 if(S.tab==='selection'){const profiles=[...new Set(items().map(o=>o.profile).filter(Boolean))];p.innerHTML=`<div class="card"><h3>Seleção</h3><div class="btns"><button class="btn" id="multiBtn">${S.multi?'Desativar':'Ativar'} seleção múltipla</button><button class="btn" id="clearBtn">Limpar</button><button class="btn" id="makeExt">Exterior</button><button class="btn" id="makeInt">Interior</button></div><div class="field"><label>Tipo</label><select id="filterType"><option value="all">Todos</option><option value="rect">Retângulos</option><option value="circle">Círculos</option><option value="polygon">Polígonos</option><option value="profile">Perfis LSF</option></select></div><div class="field"><label>Perfil</label><select id="filterProfile"><option value="all">Todos</option>${profiles.map(x=>`<option>${x}</option>`).join('')}</select></div><button class="btn green" id="filterGo">Selecionar filtrados</button></div>`;$('#multiBtn').onclick=()=>{S.multi=!S.multi;panel()};$('#clearBtn').onclick=()=>select(null);$('#makeExt').onclick=()=>{S.selected.map(item).filter(Boolean).forEach(o=>{o.wallType='exterior';o.thickness=wallThickness('exterior')});render();panel();msg('Seleção marcada como parede exterior.')};$('#makeInt').onclick=()=>{S.selected.map(item).filter(Boolean).forEach(o=>{o.wallType='interior';o.thickness=wallThickness('interior')});render();panel();msg('Seleção marcada como parede interior.')};$('#filterGo').onclick=()=>{const t=$('#filterType').value,pr=$('#filterProfile').value;S.selected=items().filter(o=>(t==='all'||(t==='profile'?o.kind==='profile':o.kind===t))&&(pr==='all'||o.profile===pr)).map(o=>o.id);render();panel();$('#selLabel').textContent=S.selected.length+' elemento(s) selecionado(s).'}}
 if(S.tab==='structure'){const r=S.calc.results;p.innerHTML=`<div class="card"><h3>Pré-cálculo estrutural LSF</h3><p>Estimativa técnica para preparação de fabrico. Não substitui projeto estrutural assinado.</p><div class="field"><label>Altura padrão das paredes (m)</label><input id="calcHeight" type="number" step="0.05" value="${S.calc.height}"></div><div class="field"><label>Largura parede exterior (m)</label><input id="extWall" type="number" step="0.01" value="${S.calc.externalWall||0.150}"></div><div class="field"><label>Largura parede interior (m)</label><input id="intWall" type="number" step="0.01" value="${S.calc.internalWall||0.100}"></div><div class="field"><label>Espaçamento montantes (m)</label><select id="calcSpacing"><option value="0.40">0,40</option><option value="0.60">0,60</option></select></div><div class="field"><label>Vento indicativo kN/m²</label><input id="calcWind" type="number" step="0.05" value="${S.calc.wind}"></div><div class="field"><label>Carga permanente kN/m²</label><input id="calcDead" type="number" step="0.05" value="${S.calc.dead}"></div><div class="field"><label>Sobrecarga kN/m²</label><input id="calcLive" type="number" step="0.05" value="${S.calc.live}"></div><button class="btn green" id="runCalc">Executar pré-cálculo</button></div>${r?`<div class="card"><h3>Resultados</h3><div class="kpi"><div><b>${r.panels}</b><span>painéis/volumes</span></div><div><b>${n(r.wallLength)} m</b><span>perímetro total</span></div><div><b>${n(r.externalLength)} m</b><span>paredes exteriores · ${((r.externalWall||S.calc.externalWall)*1000).toFixed(0)} mm</span></div><div><b>${n(r.internalLength)} m</b><span>paredes interiores · ${((r.internalWall||S.calc.internalWall)*1000).toFixed(0)} mm</span></div><div><b>${r.studs}</b><span>montantes estimados</span></div><div><b>${n(r.mass)} kg</b><span>aço estimado</span></div></div>${r.warn.length?`<p class="calc-warn">${r.warn.join('<br>')}</p>`:'<p class="calc-ok">Pré-verificação sem avisos críticos.</p>'}<p>Confirme cargas, vãos, aberturas, ligações, contraventamento e normas aplicáveis com técnico responsável.</p></div>`:''}`;$('#calcSpacing').value=S.calc.spacing;$('#runCalc').onclick=()=>{S.calc.height=Number($('#calcHeight').value)||2.7;S.calc.externalWall=Number($('#extWall').value)||0.150;S.calc.internalWall=Number($('#intWall').value)||0.100;S.calc.spacing=Number($('#calcSpacing').value)||0.6;S.calc.wind=Number($('#calcWind').value)||0.5;S.calc.dead=Number($('#calcDead').value)||0.4;S.calc.live=Number($('#calcLive').value)||0.75;runCalc()}}
@@ -734,13 +1135,13 @@ if(S.tab==='profileDims'){
 if(S.tab==='wallEditor'){
   const selected=S.selected.map(item).filter(Boolean);
   const first=selected[0]||{};
-  p.innerHTML=`<div class="card"><h3>Personalizar medidas das paredes</h3><p>Selecione uma ou várias linhas, paredes ou perfis e aplique medidas próprias.</p><div class="field"><label>Tipo de parede</label><select id="wallTypeEdit"><option value="exterior">Exterior</option><option value="interior">Interior</option></select></div><div class="wall-editor-grid"><div class="field"><label>Largura / espessura (m)</label><input id="wallThicknessEdit" type="number" step="0.01" value="${first.thickness||wallThickness(first.wallType||'exterior')}"></div><div class="field"><label>Altura da parede (m)</label><input id="wallHeightEdit" type="number" step="0.05" value="${wallHeightOf(first)}"></div><div class="field"><label>Espaçamento montantes (m)</label><input id="wallSpacingEdit" type="number" step="0.05" value="${wallSpacingOf(first)}"></div><div class="field"><label>N.º selecionados</label><input readonly value="${selected.length}"></div></div><div class="field"><label>Perfil montante</label><select id="wallStudEdit"><option>C90x40x0.95</option><option>C100x40x0.95</option><option>C140x40x1.20</option><option>C200x50x1.50</option><option>C300x50x2.00</option></select></div><div class="field"><label>Perfil guia</label><select id="wallTrackEdit"><option>U90x40x0.95</option><option>U100x40x0.95</option><option>U140x40x1.20</option><option>U200x50x1.50</option><option>U300x50x2.00</option></select></div><div class="btns"><button class="btn green" id="applyWallMeasures">Aplicar medidas à seleção</button><button class="btn" id="selectExteriorWalls">Selecionar exteriores</button><button class="btn" id="selectInteriorWalls">Selecionar interiores</button></div><div class="wall-editor-note">Depois de aplicar medidas, clique novamente em <b>Gerar LSF</b> para reconstruir os perfis com as novas dimensões.</div></div><div class="card"><h3>Paredes/linhas selecionáveis</h3><div class="list">${S.shapes.filter(o=>isClosed(o)||o.kind==='line').map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.wallType||'—'} · ${(Number(o.thickness||wallThickness(o.wallType||'exterior'))*1000).toFixed(0)} mm · H ${n(wallHeightOf(o))} m · ${wallStudProfileOf(o)}</small></div><button data-wallpick="${o.id}">Selecionar</button></div>`).join('')||'<p>Sem paredes ou linhas.</p>'}</div></div>`;
+  p.innerHTML=`<div class="card"><h3>Personalizar medidas das paredes</h3><p>Selecione uma ou várias linhas, paredes ou perfis e aplique medidas próprias.</p><div class="field"><label>Tipo de parede</label><select id="wallTypeEdit"><option value="exterior">Exterior</option><option value="interior">Interior</option></select></div><div class="wall-editor-grid"><div class="field"><label>Largura / espessura (m)</label><input id="wallThicknessEdit" type="number" step="0.01" value="${first.thickness||wallThickness(first.wallType||'exterior')}"></div><div class="field"><label>Altura da parede (m)</label><input id="wallHeightEdit" type="number" step="0.05" value="${wallHeightOf(first)}"></div><div class="field"><label>Espaçamento montantes (m)</label><input id="wallSpacingEdit" type="number" step="0.05" value="${wallSpacingOf(first)}"></div><div class="field"><label>N.º selecionados</label><input readonly value="${selected.length}"></div></div><div class="field"><label>Perfil montante</label><select id="wallStudEdit"><option>C90x40x0.95</option><option>C100x40x0.95</option><option>C140x40x1.20</option><option>C200x50x1.50</option><option>C300x50x2.00</option></select></div><div class="field"><label>Perfil guia</label><select id="wallTrackEdit"><option>U90x40x0.95</option><option>U100x40x0.95</option><option>U140x40x1.20</option><option>U200x50x1.50</option><option>U300x50x2.00</option></select></div><div class="btns"><button class="btn green" id="applyWallMeasures">Aplicar medidas à seleção</button><button class="btn" id="selectExteriorWalls">Selecionar exteriores</button><button class="btn" id="selectInteriorWalls">Selecionar interiores</button></div><div class="wall-editor-note">Depois de aplicar medidas, clique novamente em <b>Gerar LSF</b> para reconstruir os perfis com as novas dimensões.</div></div><div class="card"><h3>Paredes/linhas selecionáveis</h3><div class="list">${S.shapes.filter(o=>isClosed(o)||(o.kind==='line'&&!o.openingType)).map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.wallType||'—'} · ${(Number(o.thickness||wallThickness(o.wallType||'exterior'))*1000).toFixed(0)} mm · H ${n(wallHeightOf(o))} m · ${wallStudProfileOf(o)}</small></div><button data-wallpick="${o.id}">Selecionar</button></div>`).join('')||'<p>Sem paredes ou linhas.</p>'}</div></div>`;
   $('#wallTypeEdit').value=first.wallType||'exterior';
   $('#wallStudEdit').value=wallStudProfileOf(first);
   $('#wallTrackEdit').value=wallTrackProfileOf(first);
   $('#applyWallMeasures').onclick=()=>applyWallMeasuresToSelection({wallType:$('#wallTypeEdit').value,thickness:Number($('#wallThicknessEdit').value),height:Number($('#wallHeightEdit').value),spacing:Number($('#wallSpacingEdit').value),studProfile:$('#wallStudEdit').value,trackProfile:$('#wallTrackEdit').value});
-  $('#selectExteriorWalls').onclick=()=>{S.selected=S.shapes.filter(o=>(isClosed(o)||o.kind==='line')&&(o.wallType||classifySegmentWall(pointsOf(o)[0],pointsOf(o)[1],S.shapes.filter(isClosed).indexOf(o)))==='exterior').map(o=>o.id);render();panel();};
-  $('#selectInteriorWalls').onclick=()=>{S.selected=S.shapes.filter(o=>(isClosed(o)||o.kind==='line')&&(o.wallType||classifySegmentWall(pointsOf(o)[0],pointsOf(o)[1],S.shapes.filter(isClosed).indexOf(o)))!=='exterior').map(o=>o.id);render();panel();};
+  $('#selectExteriorWalls').onclick=()=>{S.selected=S.shapes.filter(o=>(isClosed(o)||(o.kind==='line'&&!o.openingType))&&(o.wallType||classifySegmentWall(pointsOf(o)[0],pointsOf(o)[1],S.shapes.filter(isClosed).indexOf(o)))==='exterior').map(o=>o.id);render();panel();};
+  $('#selectInteriorWalls').onclick=()=>{S.selected=S.shapes.filter(o=>(isClosed(o)||(o.kind==='line'&&!o.openingType))&&(o.wallType||classifySegmentWall(pointsOf(o)[0],pointsOf(o)[1],S.shapes.filter(isClosed).indexOf(o)))!=='exterior').map(o=>o.id);render();panel();};
   $$('[data-wallpick]').forEach(b=>b.onclick=()=>select(item(b.dataset.wallpick),S.multi));
 }
 

@@ -1,28 +1,47 @@
-# Aloe LSF 360 — Apagar Imagem Importada
+# Aloe LSF 360 — Numeração automática dos vãos por painel
 
-## Nova função
+## Novidade
 
-Depois de importar uma planta/PDF/imagem e usar **Auto desenho**, passa a ser possível:
+O mapa de vãos do CSV passa a ter numeração profissional por painel.
 
-- **Ocultar imagem**;
-- **Apagar imagem**.
+Exemplos:
 
-## Diferença
+- `P01-V01`
+- `P01-V02`
+- `I03-V01`
+- `E02-V01`
 
-### Ocultar imagem
-A imagem deixa de aparecer, mas continua guardada no projeto. Pode voltar a ligar a camada **Imagem/planta**.
+## Como funciona
 
-### Apagar imagem
-A imagem importada é removida do projeto. As linhas, paredes, perfis, cálculo e CSV mantêm-se.
+A app associa cada porta/janela ao painel ou parede mais próxima e depois numera os vãos dentro desse painel:
+
+- `P01` = painel/contorno exterior;
+- `I03` = parede interior n.º 3;
+- `E02` = parede exterior linear n.º 2;
+- `V01`, `V02`, etc. = sequência dos vãos nesse painel.
+
+## CSV
+
+No bloco **MAPA DE VÃOS**, passa a existir a coluna:
+
+- `CODIGO_VAO`
+
+seguida de:
+
+- `PAINEL`;
+- `PAREDE_REF`;
+- `TIPO`;
+- `TIPO_PAREDE`;
+- `LARGURA_MM`;
+- `ALTURA_MM`;
+- `PEITORIL_MM`;
+- `CABEÇA_VÃO_MM`;
+- `LADO_ABERTURA`.
 
 ## Fluxo recomendado
 
-1. Importar planta/PDF/imagem.
-2. Calibrar por 2 pontos.
-3. Auto desenho.
-4. Rever/corrigir linhas.
-5. Clicar em **Ocultar imagem** ou **Apagar imagem**.
-6. Continuar apenas com o desenho limpo.
-7. Gerar LSF.
-8. Pré-cálculo.
-9. CSV.
+1. Auto desenho ou desenho manual.
+2. Confirmar portas e janelas.
+3. Editar medidas dos vãos, se necessário.
+4. Clicar em **Gerar LSF**.
+5. Clicar em **Gerar CSV**.

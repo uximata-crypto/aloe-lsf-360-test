@@ -39,3 +39,13 @@
 .wall-ext{stroke:#f2a229;stroke-width:4.6;fill:none;vector-effect:non-scaling-stroke}
 
 .image-action-note{font-size:12px;color:#5d7784;background:#f4fbfb;border:1px solid #d8e8e8;border-radius:10px;padding:8px;margin-top:8px}
+
+.door-line{stroke:#9b5a00;stroke-width:3.8;fill:none;stroke-dasharray:10 5;vector-effect:non-scaling-stroke}
+.window-line{stroke:#1f84c7;stroke-width:3.8;fill:none;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
+.wall-center{stroke:rgba(0,0,0,.25);stroke-width:1.2;stroke-dasharray:5 4;fill:none;vector-effect:non-scaling-stroke}
+
+.door-gap{stroke:#a96a12;stroke-width:2.2;stroke-dasharray:6 4;fill:none;vector-effect:non-scaling-stroke}
+.door-leaf{stroke:#7a4a00;stroke-width:2.2;fill:none;vector-effect:non-scaling-stroke}
+.door-arc{stroke:#b38c4e;stroke-width:1.7;fill:none;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
+.window-gap{stroke:#2a8ac4;stroke-width:2.4;fill:none;vector-effect:non-scaling-stroke}
+.window-mark{stroke:#166d9d;stroke-width:1.8;fill:none;vector-effect:non-scaling-stroke}
