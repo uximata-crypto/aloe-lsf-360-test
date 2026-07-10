@@ -1,4 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120">
-<defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#aebdc3"/><stop offset=".5" stop-color="#e1e8eb"/><stop offset="1" stop-color="#95a7ae"/></linearGradient></defs>
-<path d="M18 30h26v-12h18v12h36v-12h18v12h26v18h-26v34H98V48H62v34H44V48H18z" fill="url(#g)" stroke="#37535f" stroke-width="4"/>
-<text x="80" y="112" text-anchor="middle" font-family="Arial" font-size="14" fill="#063a59">Ómega / Cartola</text></svg>
