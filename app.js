@@ -2,7 +2,7 @@
 'use strict';
 const svg=document.getElementById('board'), $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], NS='http://www.w3.org/2000/svg';
 const SCALE=70, ORIGIN={x:600,y:430};
-const S={tool:'select',mode:'2d',tab:'entity',shapes:[],profiles:[],selected:[],draft:null,polygon:[],next:1,multi:false,layers:{image:true,architecture:true,lsf:true,labels:true,terrain:true},cam:{yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0},drag:null,view2d:{panX:0,panY:0},image:null,calibration:null,calc:{spacing:0.60,studProfile:'C90x40x0.95',trackProfile:'U90x40x0.95',height:2.70,wind:0.50,dead:0.40,live:0.75,steel:'S280GD Z275',externalWall:0.150,internalWall:0.100,profileDims:{C:{web:90,flange:40,lip:12,thickness:0.95,kgm:1.35},U:{web:90,flange:40,lip:0,thickness:0.95,kgm:1.15}},results:null}};
+const S={tool:'select',mode:'2d',tab:'entity',shapes:[],profiles:[],selected:[],draft:null,polygon:[],next:1,multi:false,layers:{image:true,architecture:true,lsf:true,labels:true,terrain:true},cam:{yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0},drag:null,view2d:{panX:0,panY:0},image:null,calibration:null,calc:{spacing:0.60,studProfile:'C90x40x0.95',trackProfile:'U90x40x0.95',height:2.70,wind:0.50,dead:0.40,live:0.75,steel:'S280GD Z275',externalWall:0.150,internalWall:0.100,profileDims:{C:{web:90,flange:40,lip:12,thickness:0.95,kgm:1.35},U:{web:90,flange:40,lip:0,thickness:0.95,kgm:1.15}},results:null,signed:{engineer:'Joaquim Diniz',title:'Engenheiro Civil',orderNo:'',insurance:'',verificationCode:'',client:'Jorge Simões',workLocation:'Granja do Ulmeiro',process:'PJD012',date:'Jun.2026',projectName:'Bungalow T2 em LSF',scale:'1/100',length:10.00,width:7.00,wallHeight:2.36,roofRise:1.25,totalHeight:3.61,roofType:'Cobertura de duas águas',structuralSystem:'LSF — Light Steel Framing',steel:'S280GD/S350GD galvanizado, a confirmar por ficha técnica',notes:'Dossier técnico para validação e assinatura do engenheiro responsável.'}}};
 function uid(p='O'){return p+(S.next++).toString().padStart(3,'0')}
 function n(v,d=2){return Number(v||0).toFixed(d)}
 function el(t,a={}){const e=document.createElementNS(NS,t);Object.entries(a).forEach(([k,v])=>e.setAttribute(k,v));return e}
@@ -558,6 +558,98 @@ function exportCSV(){
   a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n')],{type:'text/csv;charset=utf-8'}));
   a.download='aloe_lsf360_fabrico.csv';a.click();msg('CSV gerado.');
 }
+
+function signedData(){
+  return S.signed || {};
+}
+function syncSignedFromCalc(){
+  S.signed.wallHeight=Number(S.signed.wallHeight||S.calc.height||2.36);
+  S.signed.totalHeight=Number(S.signed.wallHeight||2.36)+Number(S.signed.roofRise||1.25);
+}
+function signedDossierText(){
+  syncSignedFromCalc();
+  const d=signedData(), r=S.calc.results;
+  const lines=[];
+  lines.push('ALOe LSF 360 — DOSSIER PARA PROJETO ESTRUTURAL ASSINADO');
+  lines.push('');
+  lines.push('1. IDENTIFICAÇÃO');
+  lines.push('Técnico responsável: '+(d.title||'Eng.º')+' '+(d.engineer||'Joaquim Diniz'));
+  lines.push('N.º Ordem/Associação: '+(d.orderNo||'A preencher'));
+  lines.push('Seguro profissional: '+(d.insurance||'A preencher'));
+  lines.push('Código de verificação: '+(d.verificationCode||'A preencher'));
+  lines.push('Requerente/Dono da obra: '+(d.client||'Jorge Simões'));
+  lines.push('Local da obra: '+(d.workLocation||'Granja do Ulmeiro'));
+  lines.push('Processo: '+(d.process||'PJD012'));
+  lines.push('Data: '+(d.date||'Jun.2026'));
+  lines.push('');
+  lines.push('2. BASE DE ARQUITETURA');
+  lines.push('Projeto: '+(d.projectName||'Bungalow T2 em LSF'));
+  lines.push('Escala: '+(d.scale||'1/100'));
+  lines.push('Dimensão exterior: '+n(d.length)+' m x '+n(d.width)+' m');
+  lines.push('Altura parede/alçado: '+n(d.wallHeight)+' m');
+  lines.push('Elevação de cobertura/cume: '+n(d.roofRise)+' m');
+  lines.push('Altura total estimada: '+n(d.totalHeight)+' m');
+  lines.push('Tipo de cobertura: '+(d.roofType||'Duas águas'));
+  lines.push('');
+  lines.push('3. SOLUÇÃO ESTRUTURAL');
+  lines.push('Sistema estrutural: '+(d.structuralSystem||'LSF'));
+  lines.push('Aço/perfis: '+(d.steel||S.calc.steel));
+  lines.push('Parede exterior: '+n(S.calc.externalWall)+' m');
+  lines.push('Parede interior: '+n(S.calc.internalWall)+' m');
+  lines.push('Espaçamento de montantes: '+n(S.calc.spacing)+' m');
+  lines.push('Altura padrão: '+n(S.calc.height)+' m');
+  lines.push('');
+  lines.push('4. AÇÕES INDICATIVAS');
+  lines.push('Vento indicativo: '+n(S.calc.wind)+' kN/m²');
+  lines.push('Carga permanente: '+n(S.calc.dead)+' kN/m²');
+  lines.push('Sobrecarga: '+n(S.calc.live)+' kN/m²');
+  lines.push('');
+  lines.push('5. RESULTADOS DO PRÉ-CÁLCULO');
+  if(r){
+    lines.push('Origem: '+r.source);
+    lines.push('Comprimento total de paredes: '+n(r.wallLength)+' m');
+    lines.push('Paredes exteriores: '+n(r.externalLength)+' m');
+    lines.push('Paredes interiores: '+n(r.internalLength)+' m');
+    lines.push('Montantes estimados: '+r.studs);
+    lines.push('Guias estimadas: '+r.tracks);
+    lines.push('Massa estimada de aço: '+n(r.mass)+' kg');
+    if(r.warn?.length)lines.push('Avisos: '+r.warn.join(' | '));
+  }else{
+    lines.push('Executar pré-cálculo antes da emissão final.');
+  }
+  lines.push('');
+  lines.push('6. VERIFICAÇÕES A VALIDAR PELO ENGENHEIRO');
+  lines.push('- estabilidade global;');
+  lines.push('- ações de vento, sismo e eventuais ações locais;');
+  lines.push('- paredes exteriores e interiores;');
+  lines.push('- cobertura e transmissão de cargas;');
+  lines.push('- aberturas, reforços e lintéis;');
+  lines.push('- ligações à fundação e ancoragens;');
+  lines.push('- contraventamento e deformações;');
+  lines.push('- compatibilidade dos perfis com ficha técnica do fabricante;');
+  lines.push('- peças desenhadas e mapa final de fabrico.');
+  lines.push('');
+  lines.push('7. TERMO DE RESPONSABILIDADE');
+  lines.push('O presente documento constitui dossier técnico base para revisão, validação, complementação e assinatura pelo técnico responsável.');
+  lines.push('');
+  lines.push('Assinatura do técnico responsável: ______________________________');
+  lines.push((d.title||'Eng.º')+' '+(d.engineer||'Joaquim Diniz'));
+  return lines.join('\n');
+}
+function downloadSignedDossier(){
+  const text=signedDossierText();
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+  a.download='dossier_projeto_estrutural_assinado_aloe_lsf360.txt';
+  a.click();
+  msg('Dossier para assinatura descarregado.');
+}
+function printSignedDossier(){
+  const w=window.open('','_blank');
+  w.document.write('<html><head><title>Dossier Projeto Estrutural</title><style>body{font-family:Arial,sans-serif;line-height:1.45;padding:28px;color:#123} h1{font-size:22px} pre{white-space:pre-wrap;font-family:Arial,sans-serif}.box{border:1px solid #999;padding:18px;margin-top:20px;height:90px}</style></head><body><h1>Aloe LSF 360 — Dossier para Projeto Estrutural Assinado</h1><pre>'+signedDossierText().replace(/[&<>]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))+'</pre><div class="box">Assinatura e vinheta/código profissional</div></body></html>');
+  w.document.close();w.focus();w.print();
+}
+
 function panel(){const p=$('#panelBody'),sel=S.selected.map(item).filter(Boolean);if(S.tab==='entity'){p.innerHTML=`<div class="card"><h3>Propriedades</h3>${sel.length?`<p><b>${sel.length} elemento(s) selecionado(s)</b></p><p>Referência: ${sel[0].name}</p><p>Tipo: ${sel[0].kind==='profile'?sel[0].type:shapeName(sel[0].kind)}</p><p>Perfil: ${sel[0].profile||'—'}</p><p>Tipo de parede: ${sel[0].wallType||'—'} · largura: ${sel[0].thickness?((sel[0].thickness*1000).toFixed(0)+' mm'):'—'}</p><p>Altura personalizada: ${wallHeightOf(sel[0])} m · Espaçamento: ${wallSpacingOf(sel[0])} m</p><p>Perfis: ${wallStudProfileOf(sel[0])} / ${wallTrackProfileOf(sel[0])}</p><p>Medidas perfil: alma ${profileDimsOf(sel[0]).web} mm · aba ${profileDimsOf(sel[0]).flange} mm · lábio ${profileDimsOf(sel[0]).lip} mm · esp. ${profileDimsOf(sel[0]).thickness} mm</p><p>Altura: ${sel[0].height?n(sel[0].height)+' m':'—'}</p>`:'<p>Selecione um objeto no desenho ou na lista.</p>'}</div><div class="card"><h3>Objetos do projeto</h3><div class="list">${items().map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.kind==='profile'?o.type:shapeName(o.kind)} · ${o.wallType||'—'} · ${o.thickness?((o.thickness*1000).toFixed(0)+' mm'):''} · ${o.profile||'—'}</small></div><button data-pick="${o.id}">Selecionar</button></div>`).join('')||'<p>Nenhum objeto criado.</p>'}</div></div>`;$$('[data-pick]').forEach(b=>b.onclick=()=>select(item(b.dataset.pick),S.multi))}
 if(S.tab==='image'){p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>Importa imagem, PDF ou DXF. DWG é indicado para conversão, pois o navegador não lê DWG nativo. Depois calibre a escala e desenhe por cima.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar por 2 pontos</button><button class="btn" id="autoImg">Auto desenho</button></div>${S.image?`<p><b>Imagem carregada.</b> ${S.image.calibrated?'Escala definida por 2 pontos.':'Ainda sem calibração manual.'} Escala visual: ${n(S.image.scale,3)}</p>`:'<p>Nenhuma imagem carregada.</p>'}</div><div class="card"><h3>Fluxo</h3><p>1. Importar imagem/PDF<br>2. Calibrar por 2 pontos com medida real<br>3. Usar Auto desenho ou desenhar manualmente<br>4. Gerar LSF<br>5. Selecionar perfis<br>6. Pré-cálculo<br>7. CSV</p></div>`;$('#importImg').onclick=()=>$('#imageInput').click();$('#calibImg').onclick=startCalib;$('#autoImg').onclick=autoDetectScaleAndDrawing}
 if(S.tab==='selection'){const profiles=[...new Set(items().map(o=>o.profile).filter(Boolean))];p.innerHTML=`<div class="card"><h3>Seleção</h3><div class="btns"><button class="btn" id="multiBtn">${S.multi?'Desativar':'Ativar'} seleção múltipla</button><button class="btn" id="clearBtn">Limpar</button><button class="btn" id="makeExt">Exterior</button><button class="btn" id="makeInt">Interior</button></div><div class="field"><label>Tipo</label><select id="filterType"><option value="all">Todos</option><option value="rect">Retângulos</option><option value="circle">Círculos</option><option value="polygon">Polígonos</option><option value="profile">Perfis LSF</option></select></div><div class="field"><label>Perfil</label><select id="filterProfile"><option value="all">Todos</option>${profiles.map(x=>`<option>${x}</option>`).join('')}</select></div><button class="btn green" id="filterGo">Selecionar filtrados</button></div>`;$('#multiBtn').onclick=()=>{S.multi=!S.multi;panel()};$('#clearBtn').onclick=()=>select(null);$('#makeExt').onclick=()=>{S.selected.map(item).filter(Boolean).forEach(o=>{o.wallType='exterior';o.thickness=wallThickness('exterior')});render();panel();msg('Seleção marcada como parede exterior.')};$('#makeInt').onclick=()=>{S.selected.map(item).filter(Boolean).forEach(o=>{o.wallType='interior';o.thickness=wallThickness('interior')});render();panel();msg('Seleção marcada como parede interior.')};$('#filterGo').onclick=()=>{const t=$('#filterType').value,pr=$('#filterProfile').value;S.selected=items().filter(o=>(t==='all'||(t==='profile'?o.kind==='profile':o.kind===t))&&(pr==='all'||o.profile===pr)).map(o=>o.id);render();panel();$('#selLabel').textContent=S.selected.length+' elemento(s) selecionado(s).'}}
@@ -590,8 +682,18 @@ if(S.tab==='wallEditor'){
 }
 
 if(S.tab==='geo'){p.innerHTML=`<div class="card"><h3>Geolocalização</h3><p>Rua, número, código postal e localidade para preparar o terreno do projeto.</p><div class="field"><label>Rua e número</label><input placeholder="Rua das Acácias, 123"></div><div class="field"><label>Código postal</label><input placeholder="3080-123"></div><div class="field"><label>Localidade</label><input placeholder="Figueira da Foz"></div><button class="btn green" onclick="alert('Localização guardada no projeto de teste.')">Guardar localização</button></div>`}
+if(S.tab==='signedProject'){
+  const d=signedData();
+  p.innerHTML=`<div class="card"><h3>Projeto estrutural para assinatura</h3><div class="signed-warning"><b>Aviso:</b> este módulo gera o dossier técnico base. A assinatura e responsabilidade técnica pertencem ao engenheiro civil habilitado, após revisão e validação.</div><div class="signed-section"><h4>Técnico responsável</h4><div class="field"><label>Nome</label><input id="sgEngineer" value="${d.engineer||'Joaquim Diniz'}"></div><div class="field"><label>Título / especialidade</label><input id="sgTitle" value="${d.title||'Engenheiro Civil'}"></div><div class="field"><label>N.º Ordem / Associação</label><input id="sgOrder" placeholder="A preencher" value="${d.orderNo||''}"></div><div class="field"><label>Seguro profissional</label><input id="sgInsurance" placeholder="A preencher" value="${d.insurance||''}"></div><div class="field"><label>Código de verificação</label><input id="sgCode" placeholder="A preencher" value="${d.verificationCode||''}"></div></div><div class="signed-section"><h4>Obra</h4><div class="field"><label>Dono da obra / requerente</label><input id="sgClient" value="${d.client||'Jorge Simões'}"></div><div class="field"><label>Local da obra</label><input id="sgLocation" value="${d.workLocation||'Granja do Ulmeiro'}"></div><div class="field"><label>Processo</label><input id="sgProcess" value="${d.process||'PJD012'}"></div><div class="field"><label>Data</label><input id="sgDate" value="${d.date||'Jun.2026'}"></div></div><div class="signed-section"><h4>Dados geométricos do PDF</h4><div class="field"><label>Comprimento exterior (m)</label><input id="sgLength" type="number" step="0.01" value="${d.length||10.00}"></div><div class="field"><label>Largura exterior (m)</label><input id="sgWidth" type="number" step="0.01" value="${d.width||7.00}"></div><div class="field"><label>Altura parede/alçado (m)</label><input id="sgWallH" type="number" step="0.01" value="${d.wallHeight||2.36}"></div><div class="field"><label>Elevação cobertura/cume (m)</label><input id="sgRoof" type="number" step="0.01" value="${d.roofRise||1.25}"></div></div><div class="signed-section"><h4>Solução estrutural</h4><div class="field"><label>Sistema estrutural</label><input id="sgSystem" value="${d.structuralSystem||'LSF — Light Steel Framing'}"></div><div class="field"><label>Aço / perfis</label><input id="sgSteel" value="${d.steel||S.calc.steel}"></div><div class="field"><label>Tipo de cobertura</label><input id="sgRoofType" value="${d.roofType||'Cobertura de duas águas'}"></div></div><div class="btns"><button class="btn green" id="saveSigned">Guardar dados</button><button class="btn" id="runSignedCalc">Pré-cálculo</button><button class="btn" id="downloadSigned">Descarregar dossier TXT</button><button class="btn" id="printSigned">Imprimir/PDF</button></div><div class="signature-box">Assinatura do Eng.º Joaquim Diniz / código profissional</div></div>`;
+  const save=()=>{S.signed.engineer=$('#sgEngineer').value;S.signed.title=$('#sgTitle').value;S.signed.orderNo=$('#sgOrder').value;S.signed.insurance=$('#sgInsurance').value;S.signed.verificationCode=$('#sgCode').value;S.signed.client=$('#sgClient').value;S.signed.workLocation=$('#sgLocation').value;S.signed.process=$('#sgProcess').value;S.signed.date=$('#sgDate').value;S.signed.length=Number($('#sgLength').value)||10;S.signed.width=Number($('#sgWidth').value)||7;S.signed.wallHeight=Number($('#sgWallH').value)||2.36;S.signed.roofRise=Number($('#sgRoof').value)||1.25;S.signed.totalHeight=S.signed.wallHeight+S.signed.roofRise;S.signed.structuralSystem=$('#sgSystem').value;S.signed.steel=$('#sgSteel').value;S.signed.roofType=$('#sgRoofType').value;S.calc.height=S.signed.wallHeight;msg('Dados do projeto assinado guardados.');};
+  $('#saveSigned').onclick=save;
+  $('#runSignedCalc').onclick=()=>{save();runCalc();};
+  $('#downloadSigned').onclick=()=>{save();downloadSignedDossier();};
+  $('#printSigned').onclick=()=>{save();printSignedDossier();};
+}
+
 if(S.tab==='csv'){p.innerHTML=`<div class="card"><h3>CSV de fabrico</h3><p>Exporta volumes, perfis LSF individuais e resumo de pré-cálculo.</p><button class="btn green" id="panelCSV">Gerar CSV</button></div>`;$('#panelCSV').onclick=exportCSV}}
-function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#calibrateBtn').onclick=startCalib;$('#autoDetectBtn').onclick=autoDetectScaleAndDrawing;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
+function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#signedBtn').onclick=()=>{S.tab='signedProject';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='signedProject'));panel();};$('#calibrateBtn').onclick=startCalib;$('#autoDetectBtn').onclick=autoDetectScaleAndDrawing;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
 function demo(){const r={kind:'rect',a:{x:-2.4,y:-1.4,z:0},b:{x:2.4,y:1.4,z:0},height:2.7};finish(r);S.selected=[r.id];render();panel()}
 bind();setTool('select');demo();
 })();

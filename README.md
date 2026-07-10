@@ -1,48 +1,40 @@
-# Aloe LSF 360 — Medidas dos Perfis
+# Aloe LSF 360 — Projeto Estrutural Assinado
 
-## Nova função
+## Novo módulo
 
-Foi acrescentado o separador **Medidas perfis**.
+Foi acrescentado o separador **Projeto assinado**.
 
-Agora pode personalizar:
+## Técnico responsável
 
-- família do perfil: C ou U;
-- alma / largura principal;
-- aba;
-- lábio / retorno;
-- espessura do aço;
-- peso kg/m;
-- referência gerada do perfil.
+Pré-preenchido com:
 
-## Exemplos
+- Eng.º Joaquim Diniz
+- Especialidade: Engenheiro Civil
 
-- C90x40x12x0.95
-- C140x40x12x1.20
-- C200x50x12x1.50
-- U90x40x0.95
-- U140x40x1.20
+## Dados importados do projeto de arquitetura
 
-## Como usar
+- Requerente: Jorge Simões
+- Local: Granja do Ulmeiro
+- Processo: PJD012
+- Data: Jun.2026
+- Planta: Bungalow T2
+- Escala: 1/100
+- Dimensão exterior: 10,00 m x 7,00 m
+- Altura alçado/parede: 2,36 m
+- Elevação cobertura/cume: 1,25 m
+- Altura total estimada: 3,61 m
+- Cobertura: duas águas
 
-1. Selecione uma parede, linha ou perfil.
-2. Abra **Medidas perfis**.
-3. Defina alma, aba, lábio, espessura e kg/m.
-4. Clique em **Aplicar medidas do perfil**.
-5. Clique novamente em **Gerar LSF** se aplicou a paredes/linhas.
-6. Execute **Pré-cálculo**.
-7. Gere o **CSV**.
+## Funções
 
-## CSV
+- Guardar dados do engenheiro;
+- indicar n.º da Ordem/associação;
+- indicar seguro profissional;
+- indicar código de verificação;
+- gerar dossier técnico em TXT;
+- imprimir/guardar como PDF pelo navegador;
+- integrar pré-cálculo, perfis, paredes e CSV.
 
-O CSV passa a incluir:
+## Nota legal/técnica
 
-- ALMA_MM;
-- ABA_MM;
-- LABIO_MM;
-- ESPESSURA_MM;
-- KG_M;
-- COMPRIMENTO_MM.
-
-## Nota
-
-Os valores kg/m são indicativos e devem ser confirmados com a ficha técnica do fabricante/perfiladora.
+A app gera um dossier técnico base. O projeto estrutural assinado só existe após validação, complementação e assinatura por engenheiro civil habilitado.
