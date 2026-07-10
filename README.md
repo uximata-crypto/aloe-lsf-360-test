@@ -1,47 +1,48 @@
-# Aloe LSF 360 — Numeração automática dos vãos por painel
+# Aloe LSF 360 — Escurecimento automático de paredes estruturais
 
-## Novidade
+## Alteração implementada
 
-O mapa de vãos do CSV passa a ter numeração profissional por painel.
+Ao importar uma planta em **PNG, JPG, WEBP, SVG ou PDF**, a aplicação passa a:
 
-Exemplos:
+1. preservar internamente a imagem original;
+2. analisar os píxeis e localizar zonas lineares compatíveis com paredes;
+3. detetar paredes horizontais e verticais visíveis;
+4. escurecer automaticamente as zonas identificadas;
+5. apresentar o resultado sem impedir a calibração nem o Auto desenho.
 
-- `P01-V01`
-- `P01-V02`
-- `I03-V01`
-- `E02-V01`
+A função fica **ativa por defeito**.
 
-## Como funciona
+## Controlos adicionados
 
-A app associa cada porta/janela ao painel ou parede mais próxima e depois numera os vãos dentro desse painel:
+No separador **Imagem** foram acrescentados:
 
-- `P01` = painel/contorno exterior;
-- `I03` = parede interior n.º 3;
-- `E02` = parede exterior linear n.º 2;
-- `V01`, `V02`, etc. = sequência dos vãos nesse painel.
+- ativar/desativar o escurecimento automático;
+- intensidade do escurecimento;
+- sensibilidade da deteção: baixa, normal ou alta;
+- botão **Refazer escurecimento**.
 
-## CSV
+Na barra superior foi acrescentado o botão **Escurecer paredes**.
 
-No bloco **MAPA DE VÃOS**, passa a existir a coluna:
+## DXF
 
-- `CODIGO_VAO`
+Nas importações DXF, a aplicação procura pares de linhas paralelas e linhas exteriores longas compatíveis com paredes estruturais. As linhas reconhecidas recebem uma representação mais escura.
 
-seguida de:
+## Preservação da planta original
 
-- `PAINEL`;
-- `PAREDE_REF`;
-- `TIPO`;
-- `TIPO_PAREDE`;
-- `LARGURA_MM`;
-- `ALTURA_MM`;
-- `PEITORIL_MM`;
-- `CABEÇA_VÃO_MM`;
-- `LADO_ABERTURA`.
+O processamento não destrói a imagem original. Ao desligar a opção ou alterar a sensibilidade, a aplicação volta a processar a fonte original, evitando perda progressiva de qualidade.
 
-## Fluxo recomendado
+## Instalação no GitHub/Vercel
 
-1. Auto desenho ou desenho manual.
-2. Confirmar portas e janelas.
-3. Editar medidas dos vãos, se necessário.
-4. Clicar em **Gerar LSF**.
-5. Clicar em **Gerar CSV**.
+Substituir os ficheiros existentes por:
+
+- `index.html`
+- `app.js`
+- `styles.css`
+- `vercel.json`
+- pasta `assets`
+
+Os parâmetros de versão adicionados ao `index.html` ajudam a evitar que o navegador mantenha versões antigas de JavaScript ou CSS em cache.
+
+## Funcionalidades anteriores mantidas
+
+Mantêm-se o Auto desenho, calibração por dois pontos, deteção de portas e janelas, edição de vãos, associação dos vãos aos painéis, numeração automática e exportação CSV.

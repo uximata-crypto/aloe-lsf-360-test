@@ -49,3 +49,10 @@
 .door-arc{stroke:#b38c4e;stroke-width:1.7;fill:none;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
 .window-gap{stroke:#2a8ac4;stroke-width:2.4;fill:none;vector-effect:non-scaling-stroke}
 .window-mark{stroke:#166d9d;stroke-width:1.8;fill:none;vector-effect:non-scaling-stroke}
+
+/* Importação — deteção e escurecimento automático de paredes estruturais */
+.imported-structural-wall{stroke:#07131b;stroke-width:5.4;fill:none;stroke-linecap:square;vector-effect:non-scaling-stroke}
+.import-enhance-box{margin-top:12px;padding:11px;border:1px solid #a9d6be;border-radius:11px;background:#f0fbf4}
+.enhance-check{display:flex;align-items:flex-start;gap:8px;color:#0b6038;font-size:12px;font-weight:800;line-height:1.35}
+.enhance-check input{margin-top:2px;accent-color:var(--green)}
+.import-enhance-box input[type="range"]{width:100%;accent-color:var(--green)}
