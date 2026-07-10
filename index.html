@@ -1,1 +1,109 @@
-<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aloe LSF 360 — Core Estável</title><link rel="icon" href="assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"></head><body><div class="app"><header class="topbar"><div class="brand"><img src="assets/aloe-lsf-360-logo.svg" alt="Aloe LSF 360"><div><strong>Aloe <span>LSF 360</span></strong><small>Arquitetura · Estrutura · Fabrico</small></div></div><nav id="mainMenu"><button data-action="new">Novo</button><button data-action="open">Abrir</button><button data-action="save">Salvar como</button><button data-action="import">Importar</button><button data-action="export">Exportar</button><button data-action="location">Localização</button><button data-action="print">Imprimir</button></nav><div class="header-actions"><button class="pill" id="toggleView">2D / 3D</button><button class="pill" id="togglePanel">Painel</button></div></header><section class="tools" id="tools"><button class="tool active" data-tool="select"><b>⌖</b><span>Selecionar</span></button><button class="tool" data-tool="line"><b>╱</b><span>Linha</span></button><button class="tool" data-tool="rect"><b>▭</b><span>Retângulo</span></button><button class="tool" data-tool="circle"><b>◯</b><span>Círculo</span></button><button class="tool" data-tool="polygon"><b>⬠</b><span>Polígono</span></button><button class="tool" data-tool="push"><b>↕</b><span>Empurrar/Puxar</span></button><button class="tool" data-tool="move"><b>✥</b><span>Mover</span></button><button class="tool" data-tool="orbit"><b>◉</b><span>Órbita</span></button><button class="tool" data-tool="delete"><b>⌫</b><span>Apagar</span></button><button class="tool green" id="genLSF"><b>▦</b><span>Gerar LSF</span></button><button class="tool green" id="genCSV"><b>CSV</b><span>Gerar CSV</span></button><button class="tool" id="fit3D"><b>◎</b><span>Ajustar 3D</span></button></section><main class="main"><aside class="leftbar"><button class="side active" data-tool="select">⌖<small>Selecionar</small></button><button class="side" data-tool="line">╱<small>Linha</small></button><button class="side" data-tool="rect">▭<small>Retângulo</small></button><button class="side" data-tool="circle">◯<small>Círculo</small></button><button class="side" data-tool="polygon">⬠<small>Polígono</small></button><button class="side" data-tool="push">↕<small>Empurrar</small></button><button class="side" data-tool="move">✥<small>Mover</small></button><button class="side" data-tool="orbit">◉<small>Órbita</small></button><button class="side" data-tool="delete">⌫<small>Apagar</small></button></aside><section class="work"><div class="badge" id="badge">Vista 2D — Planta</div><div class="switch"><button class="active" id="view2D">2D</button><button id="view3D">3D</button></div><svg id="board" xmlns="http://www.w3.org/2000/svg"></svg><div class="layers"><h4>Camadas</h4><label><input type="checkbox" checked data-layer="architecture"> Arquitetura</label><label><input type="checkbox" checked data-layer="lsf"> Estrutura LSF</label><label><input type="checkbox" checked data-layer="labels"> Etiquetas</label><label><input type="checkbox" checked data-layer="terrain"> Terreno</label></div><div id="hint" class="hint">Núcleo estável: desenhe uma figura, selecione, empurre/puxe, mova, apague e gere LSF.</div><div id="toast" class="toast hidden"></div></section><aside class="panel" id="panel"><div class="panel-head"><strong>Aloe LSF 360</strong><button id="closePanel">×</button></div><div class="tabs" id="tabs"><button class="tab active" data-tab="entity">Entidade</button><button class="tab" data-tab="selection">Seleção</button><button class="tab" data-tab="move">Mover</button><button class="tab" data-tab="profiles">Perfis</button><button class="tab" data-tab="geo">Geolocalização</button><button class="tab" data-tab="csv">CSV</button></div><div id="panelBody"></div></aside></main><footer class="status"><span id="coords">X: 0.000 · Y: 0.000 · Z: 0.000</span><span id="toolLabel">Ferramenta: Selecionar</span><span id="selLabel">Nenhum objeto selecionado.</span></footer></div><input id="fileInput" type="file" accept=".json" hidden><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aloe LSF 360 — Cálculo Estrutural + Imagem + CSV</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/aloe-lsf-360-logo.svg" alt="Aloe LSF 360">
+      <div>
+        <strong>Aloe <span>LSF 360</span></strong>
+        <small>Arquitetura · Estrutura · Fabrico</small>
+      </div>
+    </div>
+    <nav id="menu">
+      <button data-action="new">Novo</button>
+      <button data-action="open">Abrir</button>
+      <button data-action="save">Salvar como</button>
+      <button data-action="import">Importar imagem</button>
+      <button data-action="export">Exportar CSV</button>
+      <button data-action="location">Localização</button>
+      <button data-action="print">Imprimir</button>
+    </nav>
+    <div class="header-actions">
+      <button class="pill" id="viewToggle">2D / 3D</button>
+      <button class="pill" id="panelToggle">Painel</button>
+    </div>
+  </header>
+
+  <section class="tools">
+    <button class="tool active" data-tool="select"><b>⌖</b><span>Selecionar</span></button>
+    <button class="tool" data-tool="line"><b>╱</b><span>Linha</span></button>
+    <button class="tool" data-tool="rect"><b>▭</b><span>Retângulo</span></button>
+    <button class="tool" data-tool="circle"><b>◯</b><span>Círculo</span></button>
+    <button class="tool" data-tool="polygon"><b>⬠</b><span>Polígono</span></button>
+    <button class="tool" data-tool="push"><b>↕</b><span>Empurrar/Puxar</span></button>
+    <button class="tool" data-tool="move"><b>✥</b><span>Mover</span></button>
+    <button class="tool" data-tool="orbit"><b>◉</b><span>Órbita</span></button>
+    <button class="tool" data-tool="delete"><b>⌫</b><span>Apagar</span></button>
+    <button class="tool" id="calibrateBtn"><b>📏</b><span>Calibrar imagem</span></button>
+    <button class="tool green" id="lsfBtn"><b>▦</b><span>Gerar LSF</span></button>
+    <button class="tool green" id="calcBtn"><b>Σ</b><span>Pré-cálculo</span></button>
+    <button class="tool green" id="csvBtn"><b>CSV</b><span>Gerar CSV</span></button>
+    <button class="tool" id="fitBtn"><b>◎</b><span>Ajustar 3D</span></button>
+  </section>
+
+  <main class="main">
+    <aside class="leftbar">
+      <button class="side active" data-tool="select">⌖<small>Selecionar</small></button>
+      <button class="side" data-tool="line">╱<small>Linha</small></button>
+      <button class="side" data-tool="rect">▭<small>Retângulo</small></button>
+      <button class="side" data-tool="circle">◯<small>Círculo</small></button>
+      <button class="side" data-tool="polygon">⬠<small>Polígono</small></button>
+      <button class="side" data-tool="push">↕<small>Empurrar</small></button>
+      <button class="side" data-tool="move">✥<small>Mover</small></button>
+      <button class="side" data-tool="orbit">◉<small>Órbita</small></button>
+      <button class="side" data-tool="delete">⌫<small>Apagar</small></button>
+    </aside>
+
+    <section class="workspace">
+      <div class="badge" id="badge">Vista 2D — Planta</div>
+      <div class="switch"><button id="v2" class="active">2D</button><button id="v3">3D</button></div>
+      <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+
+      <div class="layers">
+        <h4>Camadas</h4>
+        <label><input checked type="checkbox" data-layer="image"> Imagem/planta</label>
+        <label><input checked type="checkbox" data-layer="architecture"> Arquitetura</label>
+        <label><input checked type="checkbox" data-layer="lsf"> Estrutura LSF</label>
+        <label><input checked type="checkbox" data-layer="labels"> Etiquetas</label>
+        <label><input checked type="checkbox" data-layer="terrain"> Terreno</label>
+      </div>
+
+      <div id="hint" class="hint">Importe uma imagem, calibre a escala, desenhe por cima, gere LSF, pré-calcule e exporte CSV.</div>
+      <div id="toast" class="toast hidden"></div>
+    </section>
+
+    <aside class="panel" id="panel">
+      <div class="panel-head"><strong>Aloe LSF 360</strong><button id="panelClose">×</button></div>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="entity">Entidade</button>
+        <button class="tab" data-tab="image">Imagem</button>
+        <button class="tab" data-tab="selection">Seleção</button>
+        <button class="tab" data-tab="structure">Cálculo</button>
+        <button class="tab" data-tab="profiles">Perfis</button>
+        <button class="tab" data-tab="geo">Geolocalização</button>
+        <button class="tab" data-tab="csv">CSV</button>
+      </div>
+      <div id="panelBody"></div>
+    </aside>
+  </main>
+
+  <footer class="status">
+    <span id="coords">X: 0.000 · Y: 0.000 · Z: 0.000</span>
+    <span id="toolLabel">Ferramenta: Selecionar</span>
+    <span id="selLabel">Nenhum objeto selecionado.</span>
+  </footer>
+</div>
+
+<input id="projectInput" type="file" accept=".json" hidden>
+<input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+<script src="app.js"></script>
+</body>
+</html>
