@@ -18,3 +18,14 @@
 .auto-wall{stroke:#9b2c2c;stroke-width:3.2;fill:none;vector-effect:non-scaling-stroke}
 .detect-box{fill:none;stroke:#d7332f;stroke-width:3;stroke-dasharray:10 6;vector-effect:non-scaling-stroke}
 .detect-note{background:#eefaf2;border:1px solid #b7ddce;border-radius:10px;padding:9px;color:#0b683a;font-size:12px}
+
+.walltype-badge{display:inline-block;border-radius:999px;padding:2px 7px;font-size:10px;font-weight:800;margin-left:5px}
+.walltype-ext{background:#e8f8ed;color:#126d38;border:1px solid #9fd5b4}
+.walltype-int{background:#eef5ff;color:#145989;border:1px solid #aacbe8}
+
+.wall-editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wall-editor-note{font-size:12px;color:#5d7784;background:#f4fbfb;border:1px solid #d8e8e8;border-radius:10px;padding:8px;margin-top:8px}
+
+.profile-dim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.profile-dim-note{font-size:12px;color:#5d7784;background:#f4fbfb;border:1px solid #d8e8e8;border-radius:10px;padding:8px;margin-top:8px}
+.profile-dim-chip{display:inline-block;background:#eef5ff;border:1px solid #aacbe8;color:#145989;border-radius:999px;padding:2px 7px;font-size:10px;font-weight:800;margin-left:4px}

@@ -1,38 +1,48 @@
-# Aloe LSF 360 — Calibrar por 2 Pontos + Auto Desenho
+# Aloe LSF 360 — Medidas dos Perfis
 
-## Correção pedida
+## Nova função
 
-A calibração manual por dois pontos continua ativa e passa a estar mais clara.
+Foi acrescentado o separador **Medidas perfis**.
 
-Agora há duas funções separadas:
+Agora pode personalizar:
 
-## 1. Calibrar por 2 pontos
+- família do perfil: C ou U;
+- alma / largura principal;
+- aba;
+- lábio / retorno;
+- espessura do aço;
+- peso kg/m;
+- referência gerada do perfil.
 
-Use quando sabe uma medida real da planta.
+## Exemplos
 
-Exemplo:
-- clique no início de uma parede;
-- clique no fim da parede;
-- escreva a medida real, por exemplo `10.00` ou `7.00`.
+- C90x40x12x0.95
+- C140x40x12x1.20
+- C200x50x12x1.50
+- U90x40x0.95
+- U140x40x1.20
 
-Esta é a escala correta e deve prevalecer sobre qualquer leitura automática.
+## Como usar
 
-## 2. Auto desenho
+1. Selecione uma parede, linha ou perfil.
+2. Abra **Medidas perfis**.
+3. Defina alma, aba, lábio, espessura e kg/m.
+4. Clique em **Aplicar medidas do perfil**.
+5. Clique novamente em **Gerar LSF** se aplicou a paredes/linhas.
+6. Execute **Pré-cálculo**.
+7. Gere o **CSV**.
 
-Use depois de calibrar, para tentar detetar paredes automaticamente.
+## CSV
 
-Fluxo recomendado:
-1. Importar imagem/PDF/DXF.
-2. Clicar em **Calibrar por 2 pontos**.
-3. Marcar os dois pontos de uma cota real.
-4. Escrever a medida correta.
-5. Clicar em **Auto desenho**.
-6. Rever/corrigir linhas.
-7. Clicar em **Gerar LSF**.
-8. Selecionar perfis.
-9. Executar pré-cálculo.
-10. Gerar CSV.
+O CSV passa a incluir:
+
+- ALMA_MM;
+- ABA_MM;
+- LABIO_MM;
+- ESPESSURA_MM;
+- KG_M;
+- COMPRIMENTO_MM.
 
 ## Nota
 
-O Auto desenho ajuda a acelerar, mas a escala de confiança deve ser sempre a que o utilizador indica com dois pontos.
+Os valores kg/m são indicativos e devem ser confirmados com a ficha técnica do fabricante/perfiladora.
