@@ -207,7 +207,7 @@ function drawShape2D(s,preview=false){
     else if(isOpening(s)) drawOpening2D(s,sel);
     else drawWallLine2D(s,sel);
     if(!preview && !isOpening(s) && (!s.autoDetected||sel)) addText({x:(s.a.x+s.b.x)/2,y:(s.a.y+s.b.y)/2,z:0},s.name,sel);
-    if(!preview && isOpening(s)) addText({x:(s.a.x+s.b.x)/2,y:(s.a.y+s.b.y)/2,z:0},s.openingType==='door'?'Porta':'Janela',sel);
+    if(!preview && isOpening(s) && (!s.autoDetected||sel)) addText({x:(s.a.x+s.b.x)/2,y:(s.a.y+s.b.y)/2,z:0},s.openingType==='door'?'Porta':'Janela',sel);
     return;
   }
   addPoly(pointsOf(s).map(world2D),cls,s.id);
@@ -613,6 +613,520 @@ function analyseStructuralWalls(canvas,threshold=null){
   const main=selectMainWallZones(zones,w,h);
   return {map,zones:main.zones,box:main.box,w,h,minLen,maxGap};
 }
+// -----------------------------------------------------------------------------
+// Deteção estrutural ortogonal V3
+// Usa pares de linhas paralelas para localizar bandas de parede, constrói uma
+// rede ligada às paredes exteriores e conserva os intervalos de portas/janelas.
+// -----------------------------------------------------------------------------
+function lineTrackFromZone(z){
+  const horizontal=z.orientation==='horizontal';
+  return {
+    orientation:z.orientation,
+    axis:horizontal?(z.y1+z.y2)/2:(z.x1+z.x2)/2,
+    a:horizontal?z.x1:z.y1,
+    b:horizontal?z.x2:z.y2,
+    thickness:horizontal?(z.y2-z.y1+1):(z.x2-z.x1+1),
+    score:Number(z.score)||0,
+    parts:[[horizontal?z.x1:z.y1,horizontal?z.x2:z.y2]]
+  };
+}
+function mergeCollinearLineTracks(tracks,axisTol,gapTol){
+  const sorted=tracks.map(t=>({...t,parts:[...(t.parts||[[t.a,t.b]])]})).sort((a,b)=>a.axis-b.axis||a.a-b.a);
+  const out=[];
+  for(const t of sorted){
+    let best=null,bestMetric=Infinity;
+    for(const o of out){
+      if(o.orientation!==t.orientation)continue;
+      const axisDiff=Math.abs(o.axis-t.axis);
+      if(axisDiff>axisTol)continue;
+      const gap=Math.max(0,Math.max(o.a,t.a)-Math.min(o.b,t.b));
+      if(gap>gapTol)continue;
+      const metric=axisDiff+gap*0.015;
+      if(metric<bestMetric){best=o;bestMetric=metric}
+    }
+    if(!best){out.push(t);continue}
+    const oldLen=Math.max(1,best.b-best.a+1),newLen=Math.max(1,t.b-t.a+1);
+    best.axis=(best.axis*oldLen+t.axis*newLen)/(oldLen+newLen);
+    best.a=Math.min(best.a,t.a);best.b=Math.max(best.b,t.b);
+    best.thickness=Math.max(best.thickness,t.thickness);
+    best.score=Math.max(best.score,t.score);
+    best.parts.push(...(t.parts||[[t.a,t.b]]));
+  }
+  return out;
+}
+function darkDensityInRect(map,x1,y1,x2,y2){
+  const {dark,w,h}=map;
+  x1=clamp(Math.floor(x1),0,w-1);x2=clamp(Math.ceil(x2),0,w-1);
+  y1=clamp(Math.floor(y1),0,h-1);y2=clamp(Math.ceil(y2),0,h-1);
+  let count=0,total=0;
+  for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++){count+=dark[y*w+x]?1:0;total++}
+  return count/Math.max(1,total);
+}
+function pairParallelLineTracks(tracks,orientation,map,opts={}){
+  const minSep=Number(opts.minSep)||6,maxSep=Number(opts.maxSep)||40,minOverlap=Number(opts.minOverlap)||24;
+  const candidates=[];
+  for(let i=0;i<tracks.length;i++)for(let j=i+1;j<tracks.length;j++){
+    const a=tracks[i],b=tracks[j];
+    const sep=Math.abs(a.axis-b.axis);
+    if(sep<minSep||sep>maxSep)continue;
+    const overlap=Math.max(0,Math.min(a.b,b.b)-Math.max(a.a,b.a)+1);
+    const union=Math.max(a.b,b.b)-Math.min(a.a,b.a)+1;
+    if(overlap<minOverlap&&overlap/Math.max(1,union)<0.28)continue;
+    const lo=Math.min(a.axis,b.axis),hi=Math.max(a.axis,b.axis),start=Math.min(a.a,b.a),end=Math.max(a.b,b.b);
+    const z=orientation==='horizontal'
+      ?{orientation,x1:start,x2:end,y1:lo,y2:hi,axis:(lo+hi)/2,a:start,b:end}
+      :{orientation,x1:lo,x2:hi,y1:start,y2:end,axis:(lo+hi)/2,a:start,b:end};
+    z.length=end-start+1;z.thickness=hi-lo+1;z.overlap=overlap;
+    z.density=darkDensityInRect(map,z.x1,z.y1,z.x2,z.y2);
+    const overlapRatio=overlap/Math.max(1,Math.min(a.b-a.a+1,b.b-b.a+1));
+    z.score=z.length*z.thickness*(0.35+z.density)*(0.55+Math.min(1,overlapRatio));
+    candidates.push(z);
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  const out=[];
+  for(const z of candidates){
+    const duplicate=out.some(o=>{
+      if(o.orientation!==z.orientation)return false;
+      const axisTol=Math.max(5,Math.min(o.thickness,z.thickness)*0.70);
+      if(Math.abs(o.axis-z.axis)>axisTol)return false;
+      const ov=Math.max(0,Math.min(o.b,z.b)-Math.max(o.a,z.a)+1);
+      const ratio=ov/Math.max(1,Math.min(o.length,z.length));
+      const crossTouch=z.orientation==='horizontal'
+        ?!(z.y2<o.y1-3||z.y1>o.y2+3)
+        :!(z.x2<o.x1-3||z.x1>o.x2+3);
+      return ratio>=0.58&&crossTouch;
+    });
+    if(!duplicate)out.push(z);
+  }
+  return out;
+}
+function bandCrosses(a,b,pad=8){
+  if(a.orientation===b.orientation)return false;
+  const h=a.orientation==='horizontal'?a:b,v=a.orientation==='vertical'?a:b;
+  return v.axis>=h.a-pad&&v.axis<=h.b+pad&&h.axis>=v.a-pad&&h.axis<=v.b+pad;
+}
+function selectOuterBand(candidates,orientation,edge,span,minLength){
+  return candidates
+    .filter(z=>z.orientation===orientation&&z.length>=minLength)
+    .map(z=>({...z,edgeDistance:Math.abs(z.axis-edge)}))
+    .filter(z=>z.edgeDistance<=span*0.16)
+    .sort((a,b)=>(a.edgeDistance-b.edgeDistance)||b.score-a.score)[0]||null;
+}
+function bridgeBooleanGaps(values,maxGap){
+  const out=values.slice();let last=-1;
+  for(let i=0;i<out.length;i++)if(out[i]){
+    if(last>=0&&i-last-1<=maxGap)for(let k=last+1;k<i;k++)out[k]=1;
+    last=i;
+  }
+  return out;
+}
+function removeShortBooleanRuns(values,minRun){
+  const out=values.slice();let start=-1;
+  for(let i=0;i<=out.length;i++){
+    const on=i<out.length&&out[i];
+    if(on&&start<0)start=i;
+    if((!on||i===out.length)&&start>=0){
+      if(i-start<minRun)for(let k=start;k<i;k++)out[k]=0;
+      start=-1;
+    }
+  }
+  return out;
+}
+function movingAverage(values,radius){
+  const out=new Array(values.length).fill(0),prefix=new Array(values.length+1).fill(0);
+  for(let i=0;i<values.length;i++)prefix[i+1]=prefix[i]+values[i];
+  for(let i=0;i<values.length;i++){
+    const a=Math.max(0,i-radius),b=Math.min(values.length-1,i+radius);
+    out[i]=(prefix[b+1]-prefix[a])/(b-a+1);
+  }
+  return out;
+}
+function bandSupportProfile(map,band){
+  const {dark,w,h}=map,start=Math.round(band.a),end=Math.round(band.b);
+  const count=Math.max(1,end-start+1),edge1=new Array(count).fill(0),edge2=new Array(count).fill(0),fill=new Array(count).fill(0),centre=new Array(count).fill(0),texture=new Array(count).fill(0);
+  const T=Math.max(3,Math.round(band.thickness)),edgeR=Math.max(1,Math.round(T*0.16)),centreR=Math.max(1,Math.round(T*0.10));
+  for(let i=0;i<count;i++){
+    const p=start+i;let e1=0,e2=0,all=0,mid=0,total=0,diff=0,diffTotal=0;
+    if(band.orientation==='horizontal'){
+      const yA=Math.round(band.y1),yB=Math.round(band.y2),yM=Math.round(band.axis),x=clamp(p,0,w-1),prevX=clamp(p-1,0,w-1);
+      for(let y=Math.max(0,yA-edgeR);y<=Math.min(h-1,yA+edgeR);y++)e1=Math.max(e1,dark[y*w+x]?1:0);
+      for(let y=Math.max(0,yB-edgeR);y<=Math.min(h-1,yB+edgeR);y++)e2=Math.max(e2,dark[y*w+x]?1:0);
+      for(let y=Math.max(0,Math.floor(band.y1));y<=Math.min(h-1,Math.ceil(band.y2));y++){all+=dark[y*w+x]?1:0;total++}
+      for(let y=Math.max(0,yM-centreR);y<=Math.min(h-1,yM+centreR);y++)mid=Math.max(mid,dark[y*w+x]?1:0);
+      for(let y=Math.max(0,Math.floor(band.y1)+2);y<=Math.min(h-1,Math.ceil(band.y2)-2);y++){diff+=(dark[y*w+x]?1:0)!==(dark[y*w+prevX]?1:0)?1:0;diffTotal++}
+    }else{
+      const xA=Math.round(band.x1),xB=Math.round(band.x2),xM=Math.round(band.axis),y=clamp(p,0,h-1),prevY=clamp(p-1,0,h-1);
+      for(let x=Math.max(0,xA-edgeR);x<=Math.min(w-1,xA+edgeR);x++)e1=Math.max(e1,dark[y*w+x]?1:0);
+      for(let x=Math.max(0,xB-edgeR);x<=Math.min(w-1,xB+edgeR);x++)e2=Math.max(e2,dark[y*w+x]?1:0);
+      for(let x=Math.max(0,Math.floor(band.x1));x<=Math.min(w-1,Math.ceil(band.x2));x++){all+=dark[y*w+x]?1:0;total++}
+      for(let x=Math.max(0,xM-centreR);x<=Math.min(w-1,xM+centreR);x++)mid=Math.max(mid,dark[y*w+x]?1:0);
+      for(let x=Math.max(0,Math.floor(band.x1)+2);x<=Math.min(w-1,Math.ceil(band.x2)-2);x++){diff+=(dark[y*w+x]?1:0)!==(dark[prevY*w+x]?1:0)?1:0;diffTotal++}
+    }
+    edge1[i]=e1;edge2[i]=e2;fill[i]=all/Math.max(1,total);centre[i]=mid;texture[i]=diff/Math.max(1,diffTotal);
+  }
+  const r=Math.max(2,Math.round(T*0.16)),s1=movingAverage(edge1,r),s2=movingAverage(edge2,r),sf=movingAverage(fill,r),st=movingAverage(texture,Math.max(2,Math.round(r*0.7)));
+  const sortedTex=[...st].sort((a,b)=>a-b),q75=sortedTex[Math.floor(sortedTex.length*0.75)]||0;
+  let wall;
+  if(q75>=0.055){
+    const textureThreshold=clamp(q75*0.50,0.085,0.155);
+    const solidThreshold=Math.max(0.58,Math.min(0.78,(Number(band.density)||0.35)*1.22));
+    wall=st.map((v,i)=>(v>=textureThreshold||sf[i]>=solidThreshold)?1:0);
+  }else{
+    wall=s1.map((v,i)=>((v>=0.38&&s2[i]>=0.38)||sf[i]>=0.22)?1:0);
+  }
+  wall=bridgeBooleanGaps(wall,Math.max(5,Math.round(T*0.55)));
+  wall=removeShortBooleanRuns(wall,Math.max(7,Math.round(T*0.45)));
+  return {start,end,wall,centre:movingAverage(centre,2),fill:sf,texture:st,q75};
+}
+function runsFromBoolean(profile){
+  const runs=[];let start=-1;
+  for(let i=0;i<=profile.length;i++){
+    const on=i<profile.length&&profile[i];
+    if(on&&start<0)start=i;
+    if((!on||i===profile.length)&&start>=0){runs.push([start,i-1]);start=-1}
+  }
+  return runs;
+}
+function longestRunConnectedToBand(map,band,alongPx,direction,reach){
+  const {dark,w,h}=map,T=Math.max(3,Math.round(band.thickness));
+  let best=0;
+  for(let offset=-4;offset<=4;offset++){
+    let run=0,gaps=0,maxRun=0;
+    for(let d=Math.round(T/2)+1;d<=reach;d++){
+      let on=0;
+      if(band.orientation==='vertical'){
+        const y=clamp(Math.round(alongPx+offset),0,h-1),x=clamp(Math.round(band.axis+direction*d),0,w-1);
+        for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)on=Math.max(on,dark[yy*w+x]?1:0);
+      }else{
+        const x=clamp(Math.round(alongPx+offset),0,w-1),y=clamp(Math.round(band.axis+direction*d),0,h-1);
+        for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++)on=Math.max(on,dark[y*w+xx]?1:0);
+      }
+      if(on){run++;gaps=0;maxRun=Math.max(maxRun,run)}
+      else if(run>0){gaps++;if(gaps<=2)run++;else{run=0;gaps=0}}
+    }
+    best=Math.max(best,maxRun);
+  }
+  return best;
+}
+function openingTypeForGap(map,band,fromPx,toPx,centreProfile,profileStart,wallType){
+  const gapPx=Math.max(1,toPx-fromPx+1),reach=Math.min(Math.round(gapPx*1.25),Math.round(Math.min(map.w,map.h)*0.22));
+  let leaf=0;
+  for(const endpoint of [fromPx,toPx])for(const dir of [-1,1])leaf=Math.max(leaf,longestRunConnectedToBand(map,band,endpoint,dir,reach));
+  const ia=clamp(Math.round(fromPx-profileStart),0,centreProfile.length-1),ib=clamp(Math.round(toPx-profileStart),0,centreProfile.length-1);
+  let centre=0;for(let i=Math.min(ia,ib);i<=Math.max(ia,ib);i++)centre+=centreProfile[i]||0;
+  const centreRatio=centre/Math.max(1,Math.abs(ib-ia)+1);
+  if(leaf>=Math.max(20,gapPx*0.82))return 'door';
+  if(wallType==='exterior')return 'window';
+  if(centreRatio>=0.30)return 'window';
+  return 'door';
+}
+function splitDetectedBand(map,band,box){
+  const prof=bandSupportProfile(map,band),pixelPerM=band.orientation==='horizontal'?(box.x2-box.x1)/10:(box.y2-box.y1)/7;
+  const minWallPx=Math.max(9,Math.round(pixelPerM*0.10)),minOpeningPx=Math.max(8,Math.round(pixelPerM*0.30)),maxOpeningPx=Math.max(35,Math.round(pixelPerM*2.70));
+  let runs=runsFromBoolean(prof.wall).filter(r=>r[1]-r[0]+1>=minWallPx);
+  if(!runs.length)runs=[[0,prof.wall.length-1]];
+  const wallRuns=runs.map(r=>[prof.start+r[0],prof.start+r[1]]);
+  const openings=[];
+  const addGap=(from,to)=>{
+    const len=to-from+1;
+    if(len<minOpeningPx||len>maxOpeningPx)return;
+    const type=openingTypeForGap(map,band,from,to,prof.centre,prof.start,band.wallType);
+    openings.push({fromPx:from,toPx:to,openingType:type,band});
+  };
+  for(let i=0;i<wallRuns.length-1;i++)addGap(wallRuns[i][1]+1,wallRuns[i+1][0]-1);
+  // Em paredes interiores, portas podem ocupar a extremidade entre um troço de
+  // parede e a parede perpendicular que fecha o compartimento.
+  if(band.wallType==='interior'&&wallRuns.length){
+    addGap(prof.start,wallRuns[0][0]-1);
+    addGap(wallRuns[wallRuns.length-1][1]+1,prof.end);
+  }
+  return {band,wallRuns,openings,profile:prof};
+}
+function structuralZoneToBand(z,map){
+  const horizontal=z.orientation==='horizontal';
+  const band={
+    orientation:z.orientation,
+    x1:z.x1,y1:z.y1,x2:z.x2,y2:z.y2,
+    axis:horizontal?(z.y1+z.y2)/2:(z.x1+z.x2)/2,
+    a:horizontal?z.x1:z.y1,
+    b:horizontal?z.x2:z.y2,
+    length:horizontal?(z.x2-z.x1+1):(z.y2-z.y1+1),
+    thickness:horizontal?(z.y2-z.y1+1):(z.x2-z.x1+1),
+    sourceScore:Number(z.score)||0
+  };
+  band.density=darkDensityInRect(map,band.x1,band.y1,band.x2,band.y2);
+  const T=band.thickness;
+  const thicknessFit=T>=11&&T<=30?1.45:(T>=8&&T<=38?1:(T<=46?0.58:0.30));
+  band.score=band.length*(0.25+band.density)*thicknessFit;
+  return band;
+}
+function sameWallBand(a,b,axisFactor=0.62,overlapRatio=0.52){
+  if(a.orientation!==b.orientation)return false;
+  const axisTol=Math.max(6,Math.min(a.thickness,b.thickness)*axisFactor);
+  if(Math.abs(a.axis-b.axis)>axisTol)return false;
+  const overlap=Math.max(0,Math.min(a.b,b.b)-Math.max(a.a,b.a)+1);
+  return overlap/Math.max(1,Math.min(a.length,b.length))>=overlapRatio;
+}
+function dedupeStructuralBands(bands){
+  const out=[];
+  for(const z of [...bands].sort((a,b)=>b.score-a.score)){
+    if(out.some(o=>sameWallBand(o,z)))continue;
+    out.push({...z});
+  }
+  return out;
+}
+function mergeCollinearStructuralPieces(bands,maxGap){
+  const list=bands.map(z=>({...z}));let changed=true;
+  while(changed){
+    changed=false;
+    outer:for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){
+      const a=list[i],b=list[j];if(a.orientation!==b.orientation)continue;
+      const axisTol=Math.max(7,Math.min(a.thickness,b.thickness)*0.82);
+      if(Math.abs(a.axis-b.axis)>axisTol)continue;
+      const overlap=Math.max(0,Math.min(a.b,b.b)-Math.max(a.a,b.a)+1);
+      const gap=Math.max(0,Math.max(a.a,b.a)-Math.min(a.b,b.b)-1);
+      if(overlap>Math.min(a.length,b.length)*0.25||gap>maxGap)continue;
+      const wa=a.length*(0.3+a.density),wb=b.length*(0.3+b.density);
+      const axis=(a.axis*wa+b.axis*wb)/Math.max(1,wa+wb);
+      const merged={...a,axis,a:Math.min(a.a,b.a),b:Math.max(a.b,b.b)};
+      merged.length=merged.b-merged.a+1;
+      merged.thickness=Math.max(a.thickness,b.thickness);
+      merged.density=(a.density*a.length+b.density*b.length)/Math.max(1,a.length+b.length);
+      merged.score=a.score+b.score;
+      if(merged.orientation==='horizontal'){
+        merged.x1=merged.a;merged.x2=merged.b;
+        merged.y1=axis-merged.thickness/2;merged.y2=axis+merged.thickness/2;
+      }else{
+        merged.y1=merged.a;merged.y2=merged.b;
+        merged.x1=axis-merged.thickness/2;merged.x2=axis+merged.thickness/2;
+      }
+      list[i]=merged;list.splice(j,1);changed=true;break outer;
+    }
+  }
+  return dedupeStructuralBands(list);
+}
+function endpointConnectionCount(z,bands,pad){
+  let start=0,end=0;
+  for(const o of bands){
+    if(o===z||o.orientation===z.orientation)continue;
+    const cross=z.orientation==='horizontal'?o.axis:z.axis;
+    const otherAxis=z.orientation==='horizontal'?z.axis:o.axis;
+    const oStart=o.a-pad,oEnd=o.b+pad;
+    if(otherAxis<oStart||otherAxis>oEnd)continue;
+    if(Math.abs(cross-z.a)<=pad)start++;
+    if(Math.abs(cross-z.b)<=pad)end++;
+  }
+  return {start,end,total:start+end};
+}
+function connectedBandsFromOuter(candidates,outer){
+  const accepted=[...outer],keys=new Set(outer.map(z=>z.__key));
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(const z of candidates){
+      if(keys.has(z.__key))continue;
+      const pad=Math.max(10,z.thickness*0.75);
+      const crosses=accepted.filter(o=>bandCrosses(z,o,pad)).length;
+      const ep=endpointConnectionCount(z,accepted,pad*1.35);
+      if(crosses>=1&&(ep.total>=1||z.length>=220)){
+        accepted.push(z);keys.add(z.__key);changed=true;
+      }
+    }
+  }
+  return accepted;
+}
+
+function attachThinStructuralPieces(strong,thin,maxGap){
+  const out=strong.map(z=>({...z}));
+  for(const t of thin){
+    let best=null,bestMetric=Infinity;
+    for(const z of out){
+      if(z.orientation!==t.orientation)continue;
+      const axisDiff=Math.abs(z.axis-t.axis);
+      if(axisDiff>Math.max(8,z.thickness*0.68))continue;
+      const gap=Math.max(0,Math.max(z.a,t.a)-Math.min(z.b,t.b)-1);
+      if(gap>maxGap)continue;
+      const metric=axisDiff+gap*0.02;
+      if(metric<bestMetric){best=z;bestMetric=metric}
+    }
+    if(!best)continue;
+    best.a=Math.min(best.a,t.a);best.b=Math.max(best.b,t.b);best.length=best.b-best.a+1;
+    best.score+=t.score*0.35;
+    if(best.orientation==='horizontal'){best.x1=best.a;best.x2=best.b}
+    else{best.y1=best.a;best.y2=best.b}
+  }
+  return out;
+}
+function detectOrthogonalStructuralNetworkCore(canvas,threshold=null){
+  const prefs=importPrefs(),analysis=analyseStructuralWalls(canvas,threshold??(Number(prefs.darkThreshold)||185)),map=analysis.map;
+  const {w,h}=map,minDim=Math.min(w,h),baseBox=validBuildingBox(analysis.box,w,h);
+  const minLength=Math.max(72,Math.round(minDim*0.085));
+  const allBands=analysis.zones.map(z=>structuralZoneToBand(z,map)).filter(z=>z.length>=Math.max(42,minLength*0.70)&&z.thickness>=4&&z.thickness<=Math.max(46,minDim*0.058)&&z.density>=0.045);
+  const strongBands=allBands.filter(z=>z.length>=minLength&&z.thickness>=8);
+  const thinBands=allBands.filter(z=>z.thickness<8);
+  let candidates=dedupeStructuralBands(strongBands);
+  candidates=mergeCollinearStructuralPieces(candidates,Math.max(55,Math.round(minDim*0.24)));
+  candidates=attachThinStructuralPieces(candidates,thinBands,Math.max(32,Math.round(minDim*0.13)));
+  candidates=dedupeStructuralBands(candidates);
+
+  const bw=baseBox.x2-baseBox.x1,bh=baseBox.y2-baseBox.y1;
+  const top=selectOuterBand(candidates,'horizontal',baseBox.y1,bh,bw*0.48);
+  const bottom=selectOuterBand(candidates,'horizontal',baseBox.y2,bh,bw*0.58);
+  const left=selectOuterBand(candidates,'vertical',baseBox.x1,bw,bh*0.58);
+  const right=selectOuterBand(candidates,'vertical',baseBox.x2,bw,bh*0.58);
+  const outer=[top,bottom,left,right].filter(Boolean);
+  let box={...baseBox};
+  if(top)box.y1=top.axis;if(bottom)box.y2=bottom.axis;if(left)box.x1=left.axis;if(right)box.x2=right.axis;
+  const margin=Math.max(10,Math.min(box.x2-box.x1,box.y2-box.y1)*0.03);
+  candidates=candidates.filter(z=>{
+    const cx=(z.x1+z.x2)/2,cy=(z.y1+z.y2)/2;
+    const inside=cx>=box.x1-margin&&cx<=box.x2+margin&&cy>=box.y1-margin&&cy<=box.y2+margin;
+    if(!inside)return false;
+    const nearBoundary=z.orientation==='horizontal'
+      ?Math.min(Math.abs(z.axis-box.y1),Math.abs(z.axis-box.y2))/(box.y2-box.y1)
+      :Math.min(Math.abs(z.axis-box.x1),Math.abs(z.axis-box.x2))/(box.x2-box.x1);
+    const isOuter=outer.includes(z);
+    return isOuter||nearBoundary>=0.115;
+  });
+  candidates.forEach((z,i)=>z.__key=[z.orientation,Math.round(z.axis),Math.round(z.a),Math.round(z.b),i].join('|'));
+  outer.forEach((z,i)=>{if(!z.__key)z.__key='outer-'+i});
+
+  let connected=connectedBandsFromOuter(candidates,outer);
+  // Mantém apenas elementos com ligação física à rede; elimina mobiliário isolado.
+  connected=connected.filter(z=>{
+    if(outer.includes(z))return true;
+    const pad=Math.max(10,z.thickness*0.85);
+    const ep=endpointConnectionCount(z,connected,pad*1.45);
+    const cross=connected.filter(o=>o!==z&&bandCrosses(z,o,pad)).length;
+    return (ep.start>0&&ep.end>0)||cross>=2||((ep.total>=1||cross>=1)&&z.length>=minDim*0.22);
+  });
+  connected=dedupeStructuralBands(connected);
+  const unique=connected.map(z=>{
+    const outerWall=outer.some(o=>o.orientation===z.orientation&&Math.abs(o.axis-z.axis)<=Math.max(7,z.thickness*0.45));
+    return {...z,wallType:outerWall?'exterior':'interior'};
+  });
+  const split=unique.map(z=>splitDetectedBand(map,z,box));
+  return {analysis,map,box,bands:unique,split,w,h,candidates,outer};
+}
+
+
+function dilateBinaryGrid(src,w,h,radius=1){
+  const out=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(src[y*w+x]){
+    for(let yy=Math.max(0,y-radius);yy<=Math.min(h-1,y+radius);yy++)for(let xx=Math.max(0,x-radius);xx<=Math.min(w-1,x+radius);xx++)out[yy*w+xx]=1;
+  }
+  return out;
+}
+function erodeBinaryGrid(src,w,h,radius=1){
+  const out=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    let ok=1;
+    for(let yy=Math.max(0,y-radius);yy<=Math.min(h-1,y+radius)&&ok;yy++)for(let xx=Math.max(0,x-radius);xx<=Math.min(w-1,x+radius);xx++)if(!src[yy*w+xx]){ok=0;break}
+    if(ok)out[y*w+x]=1;
+  }
+  return out;
+}
+function locateArchitecturalPlanRegion(canvas,threshold=185){
+  const map=getDarkMap(canvas,threshold),{dark,w,h}=map,maxSide=420,scale=Math.max(1,Math.max(w,h)/maxSide);
+  const cw=Math.max(1,Math.ceil(w/scale)),ch=Math.max(1,Math.ceil(h/scale));
+  const counts=new Uint16Array(cw*ch),cellPixels=new Uint16Array(cw*ch);
+  const mx=Math.floor(w*0.025),my=Math.floor(h*0.025);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const cx=Math.min(cw-1,Math.floor(x/scale)),cy=Math.min(ch-1,Math.floor(y/scale)),i=cy*cw+cx;
+    cellPixels[i]++;
+    if(x>=mx&&x<w-mx&&y>=my&&y<h-my&&dark[y*w+x])counts[i]++;
+  }
+  let grid=new Uint8Array(cw*ch);
+  for(let i=0;i<grid.length;i++)if(counts[i]>=Math.max(1,Math.round(cellPixels[i]*0.015)))grid[i]=1;
+  grid=dilateBinaryGrid(grid,cw,ch,1);
+  grid=erodeBinaryGrid(dilateBinaryGrid(grid,cw,ch,2),cw,ch,2);
+  const seen=new Uint8Array(cw*ch),components=[];
+  for(let sy=0;sy<ch;sy++)for(let sx=0;sx<cw;sx++){
+    const si=sy*cw+sx;if(!grid[si]||seen[si])continue;
+    const queue=[si];seen[si]=1;let q=0,minX=sx,maxX=sx,minY=sy,maxY=sy,cells=0,darkCount=0;
+    while(q<queue.length){
+      const i=queue[q++],x=i%cw,y=Math.floor(i/cw);cells++;darkCount+=counts[i];
+      minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+      for(let yy=Math.max(0,y-1);yy<=Math.min(ch-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(cw-1,x+1);xx++){
+        const ni=yy*cw+xx;if(!seen[ni]&&grid[ni]){seen[ni]=1;queue.push(ni)}
+      }
+    }
+    const x=minX*scale,y=minY*scale,ww=(maxX-minX+1)*scale,hh=(maxY-minY+1)*scale,aspect=ww/Math.max(1,hh);
+    if(ww<w*0.16||hh<h*0.09||ww>w*0.94||hh>h*0.78||aspect<0.75||aspect>2.65)continue;
+    const aspectPref=Math.exp(-Math.abs(Math.log(aspect/1.45))*1.15);
+    const positionPref=1+0.12*(1-(y+hh/2)/h);
+    const score=darkCount*aspectPref*positionPref*Math.min(1.25,0.75+cells/900);
+    components.push({x,y,w:ww,h:hh,aspect,darkCount,cells,score});
+  }
+  if(!components.length)return {x:0,y:0,w,h,full:true};
+  const best=components.sort((a,b)=>b.score-a.score)[0];
+  const padX=Math.max(12,best.w*0.08),padY=Math.max(12,best.h*0.09);
+  const region={
+    x:clamp(Math.floor(best.x-padX),0,w-2),
+    y:clamp(Math.floor(best.y-padY),0,h-2),
+    w:0,h:0,full:false,score:best.score
+  };
+  const x2=clamp(Math.ceil(best.x+best.w+padX),region.x+1,w),y2=clamp(Math.ceil(best.y+best.h+padY),region.y+1,h);
+  region.w=x2-region.x;region.h=y2-region.y;
+  if(region.w*region.h>w*h*0.82)return {x:0,y:0,w,h,full:true};
+  return region;
+}
+function croppedCanvasView(canvas,region){
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const image=ctx.getImageData(region.x,region.y,region.w,region.h);
+  return {width:region.w,height:region.h,getContext(){return {getImageData(){return image}}}};
+}
+function offsetDetectedBand(z,dx,dy){
+  const horizontal=z.orientation==='horizontal',longOffset=horizontal?dx:dy,crossOffset=horizontal?dy:dx;
+  return {...z,x1:z.x1+dx,x2:z.x2+dx,y1:z.y1+dy,y2:z.y2+dy,axis:z.axis+crossOffset,a:z.a+longOffset,b:z.b+longOffset};
+}
+function offsetDetectedNetwork(network,dx,dy,fullW,fullH,region){
+  const bands=network.bands.map(z=>offsetDetectedBand(z,dx,dy));
+  const split=network.split.map((s,i)=>{
+    const band=offsetDetectedBand(s.band,dx,dy),longOffset=band.orientation==='horizontal'?dx:dy;
+    return {...s,band,wallRuns:s.wallRuns.map(r=>[r[0]+longOffset,r[1]+longOffset]),openings:s.openings.map(o=>({...o,fromPx:o.fromPx+longOffset,toPx:o.toPx+longOffset,band})),profile:{...s.profile,start:s.profile.start+longOffset,end:s.profile.end+longOffset}};
+  });
+  return {...network,bands,split,box:{x1:network.box.x1+dx,y1:network.box.y1+dy,x2:network.box.x2+dx,y2:network.box.y2+dy},w:fullW,h:fullH,cropRegion:region};
+}
+function detectOrthogonalStructuralNetwork(canvas,threshold=null){
+  const prefs=importPrefs(),value=threshold??(Number(prefs.darkThreshold)||185),region=locateArchitecturalPlanRegion(canvas,value);
+  if(region.full)return detectOrthogonalStructuralNetworkCore(canvas,value);
+  const cropped=croppedCanvasView(canvas,region),network=detectOrthogonalStructuralNetworkCore(cropped,value);
+  return offsetDetectedNetwork(network,region.x,region.y,canvas.width,canvas.height,region);
+}
+function detectedMaskFromNetwork(width,height,network){
+  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,width,height);ctx.fillStyle='#061018';
+  for(const s of network.split)for(const r of s.wallRuns){
+    const z=s.band,pad=1;
+    if(z.orientation==='horizontal')ctx.fillRect(Math.max(0,r[0]-pad),Math.max(0,z.y1-pad),Math.min(width-r[0]+pad,r[1]-r[0]+1+pad*2),Math.min(height-z.y1+pad,z.y2-z.y1+1+pad*2));
+    else ctx.fillRect(Math.max(0,z.x1-pad),Math.max(0,r[0]-pad),Math.min(width-z.x1+pad,z.x2-z.x1+1+pad*2),Math.min(height-r[0]+pad,r[1]-r[0]+1+pad*2));
+  }
+  return canvas.toDataURL('image/png');
+}
+function networkToWorldGeometry(network,widthM,heightM){
+  const box=network.box,bw=Math.max(1,box.x2-box.x1),bh=Math.max(1,box.y2-box.y1);
+  const pxToWorld=(px,py)=>({x:(px-box.x1)/bw*widthM-widthM/2,y:heightM/2-(py-box.y1)/bh*heightM,z:0});
+  const walls=[],openings=[];
+  for(const s of network.split){
+    const z=s.band,thickness=z.orientation==='horizontal'?(z.thickness/bh*heightM):(z.thickness/bw*widthM);
+    for(const r of s.wallRuns){
+      let a,b;
+      if(z.orientation==='horizontal'){a=pxToWorld(r[0],z.axis);b=pxToWorld(r[1],z.axis)}
+      else{a=pxToWorld(z.axis,r[0]);b=pxToWorld(z.axis,r[1])}
+      if(Math.hypot(b.x-a.x,b.y-a.y)>=0.12)walls.push({a,b,orientation:z.orientation,thickness:clamp(thickness,0.07,0.28),wallType:z.wallType,doubleLine:true});
+    }
+    for(const o of s.openings){
+      let a,b;
+      if(z.orientation==='horizontal'){a=pxToWorld(o.fromPx,z.axis);b=pxToWorld(o.toPx,z.axis)}
+      else{a=pxToWorld(z.axis,o.fromPx);b=pxToWorld(z.axis,o.toPx)}
+      const L=Math.hypot(b.x-a.x,b.y-a.y);
+      if(L>=0.30&&L<=2.80)openings.push({a,b,orientation:z.orientation,openingType:o.openingType,wallType:z.wallType,lengthM:L,autoDetected:true});
+    }
+  }
+  return {walls,openings};
+}
+
 function wallMaskFromZones(width,height,zones){
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
   const ctx=canvas.getContext('2d');ctx.clearRect(0,0,width,height);ctx.fillStyle='#050c12';
@@ -702,11 +1216,13 @@ async function darkenStructuralWallsInRaster(src){
   canvas.height=Math.max(1,Math.round((im.naturalHeight||im.height)*scale));
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(im,0,0,canvas.width,canvas.height);
-  const analysis=analyseStructuralWalls(canvas,Number(prefs.darkThreshold)||185);
+  const network=detectOrthogonalStructuralNetwork(canvas,Number(prefs.darkThreshold)||185);
+  const wallRuns=network.split.reduce((n,s)=>n+s.wallRuns.length,0);
+  const openingCount=network.split.reduce((n,s)=>n+s.openings.length,0);
   return {
-    maskSrc:wallMaskFromZones(canvas.width,canvas.height,analysis.zones),
-    zones:analysis.zones.length,width:canvas.width,height:canvas.height,
-    box:analysis.box,zonesData:analysis.zones
+    maskSrc:detectedMaskFromNetwork(canvas.width,canvas.height,network),
+    zones:network.bands.length,wallRuns,openingCount,width:canvas.width,height:canvas.height,
+    box:network.box,zonesData:network.bands,network
   };
 }
 function importedDisplaySize(im,maxW=720,maxH=520){
@@ -725,8 +1241,9 @@ async function setImportedRaster(src,meta={}){
       const result=await darkenStructuralWallsInRaster(src);
       if(S.image!==image)return;
       image.wallMaskSrc=result.maskSrc;image.wallDarkened=true;image.wallZones=result.zones;
+      image.wallRuns=result.wallRuns;image.detectedOpenings=result.openingCount;
       image.wallMaskBox=result.box;image.wallZonesData=result.zonesData;image.wallDarkness=importPrefs().wallDarkness;
-      render();panel();msg('Importação concluída: '+result.zones+' zonas de parede detetadas e escurecidas.');
+      render();panel();msg('Importação concluída: '+result.wallRuns+' troços de parede e '+result.openingCount+' vãos preservados no escurecimento.');
     }catch(err){
       console.warn('Escurecimento automático falhou',err);image.wallMaskSrc=null;image.wallDarkened=false;render();panel();msg('Imagem importada. Não foi possível escurecer as paredes automaticamente.');
     }
@@ -744,9 +1261,9 @@ async function refreshImportedWallDarkening(){
   try{
     const result=await darkenStructuralWallsInRaster(original);
     S.image.originalSrc=original;S.image.src=original;S.image.wallMaskSrc=result.maskSrc;
-    S.image.wallDarkened=true;S.image.wallZones=result.zones;S.image.wallMaskBox=result.box;S.image.wallZonesData=result.zonesData;
+    S.image.wallDarkened=true;S.image.wallZones=result.zones;S.image.wallRuns=result.wallRuns;S.image.detectedOpenings=result.openingCount;S.image.wallMaskBox=result.box;S.image.wallZonesData=result.zonesData;
     S.image.wallDarkness=prefs.wallDarkness;
-    render();panel();msg(result.zones+' zonas de parede detetadas e escurecidas.');
+    render();panel();msg(result.wallRuns+' troços de parede detetados; '+result.openingCount+' vãos mantidos abertos.');
   }catch(err){console.error(err);msg('Não foi possível refazer o escurecimento automático.');}
 }
 function markDXFStructuralWalls(lines){
@@ -1035,15 +1552,16 @@ async function autoDetectScaleAndDrawing(){
   if(!S.image)return msg('Importe primeiro a planta/imagem/PDF.');
   try{
     const im=await loadImageElement(S.image.originalSrc||S.image.src);
-    const maxW=1500,scale=Math.min(1,maxW/(im.naturalWidth||im.width));
+    const maxW=1600,scale=Math.min(1,maxW/(im.naturalWidth||im.width));
     const canvas=document.createElement('canvas');
     canvas.width=Math.max(1,Math.round((im.naturalWidth||im.width)*scale));
     canvas.height=Math.max(1,Math.round((im.naturalHeight||im.height)*scale));
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(im,0,0,canvas.width,canvas.height);
 
-    const analysis=analyseStructuralWalls(canvas,Number(importPrefs().darkThreshold)||185);
-    const map=analysis.map,box=analysis.box;
+    msg('A detetar paredes estruturais, portas e janelas...');
+    const network=detectOrthogonalStructuralNetwork(canvas,Number(importPrefs().darkThreshold)||185);
+    const box=network.box;
     let dims=await detectDimensionsOCR();
     const manualDims=dimensionsFromManualCalibration(box,canvas);
     let widthM=manualDims?manualDims.widthM:(Number(dims.width)||0);
@@ -1060,47 +1578,55 @@ async function autoDetectScaleAndDrawing(){
     }
 
     alignImportedImageToBox(canvas,box,widthM,heightM);
-    S.image.wallMaskSrc=wallMaskFromZones(canvas.width,canvas.height,analysis.zones);
-    S.image.wallDarkened=true;S.image.wallZones=analysis.zones.length;S.image.wallMaskBox=box;S.image.wallZonesData=analysis.zones;
+    S.image.wallMaskSrc=detectedMaskFromNetwork(canvas.width,canvas.height,network);
+    S.image.wallDarkened=true;
+    S.image.wallZones=network.bands.length;
+    S.image.wallRuns=network.split.reduce((sum,s)=>sum+s.wallRuns.length,0);
+    S.image.detectedOpenings=network.split.reduce((sum,s)=>sum+s.openings.length,0);
+    S.image.wallMaskBox=box;
+    S.image.wallZonesData=network.bands;
 
+    // Remove apenas o auto desenho anterior. Elementos desenhados manualmente permanecem.
     S.shapes=S.shapes.filter(s=>!s.autoDetected);
-    const rect={kind:'rect',a:{x:-widthM/2,y:-heightM/2,z:0},b:{x:widthM/2,y:heightM/2,z:0},height:Number(S.calc?.height)||2.7,wallType:'exterior',thickness:Number(S.calc.externalWall)||0.150,autoDetected:true};
-    rect.id=uid('A');rect.name='Planta exterior auto '+n(widthM)+'x'+n(heightM)+' m';S.shapes.push(rect);
+    const geometry=networkToWorldGeometry(network,widthM,heightM);
 
-    const drawingZones=structuralZonesForDrawing(analysis.zones,box);
-    let segs=wallZonesToSegments(drawingZones,box,widthM,heightM);
-    const edgeTol=Math.max(0.16,Math.min(widthM,heightM)*0.035);
-    segs=segs.filter(s=>{
-      const mx=(s.a.x+s.b.x)/2,my=(s.a.y+s.b.y)/2;
-      const nearOuter=Math.min(Math.abs(mx+widthM/2),Math.abs(mx-widthM/2),Math.abs(my+heightM/2),Math.abs(my-heightM/2))<edgeTol;
-      return !nearOuter;
-    });
-    segs.forEach((seg,i)=>{
-      const wt='interior';
-      const thickness=Number(seg.thickness)||wallThickness(wt);
-      const line={kind:'line',a:seg.a,b:seg.b,height:0,wallType:wt,thickness,detectedThickness:thickness,doubleLine:true,orientation:seg.orientation,autoDetected:true,imported:true,structuralVisible:true};
-      line.id=uid('W');line.name='Parede auto '+(i+1);S.shapes.push(line);
+    geometry.walls.forEach((seg,i)=>{
+      const line={
+        kind:'line',a:seg.a,b:seg.b,height:0,
+        wallType:seg.wallType,
+        thickness:Number(seg.thickness)||wallThickness(seg.wallType),
+        detectedThickness:Number(seg.thickness)||wallThickness(seg.wallType),
+        doubleLine:true,orientation:seg.orientation,
+        autoDetected:true,imported:true,structuralVisible:true
+      };
+      line.id=uid('W');
+      line.name=(seg.wallType==='exterior'?'Parede exterior auto ':'Parede interior auto ')+(i+1);
+      S.shapes.push(line);
     });
 
-    const coarse=detectWallAndOpenings(map,box,widthM,heightM);
-    const openings=coarse.openings.filter(o=>{
-      const L=Math.hypot(o.b.x-o.a.x,o.b.y-o.a.y);
-      if(L<0.40||L>2.40)return false;
-      const mx=(o.a.x+o.b.x)/2,my=(o.a.y+o.b.y)/2;
-      return Math.abs(mx)<=widthM/2+0.15&&Math.abs(my)<=heightM/2+0.15;
+    geometry.openings.forEach((o,i)=>{
+      const op={
+        kind:'line',a:o.a,b:o.b,openingType:o.openingType,
+        wallType:o.wallType,
+        thickness:o.openingType==='door'?0.05:0.04,
+        autoDetected:true,imported:true,doorHinge:'start',doorSwingSign:1
+      };
+      op.id=uid(o.openingType==='door'?'D':'J');
+      op.name=(o.openingType==='door'?'Porta auto ':'Janela auto ')+(i+1);
+      setOpeningHeights(op,o.openingType==='door'?2.10:1.20,o.openingType==='window'?0.90:null);
+      S.shapes.push(op);
     });
-    openings.forEach((o,i)=>{
-      const op={kind:'line',a:o.a,b:o.b,openingType:o.openingType,wallType:classifySegmentWall(o.a,o.b,-1),thickness:o.openingType==='door'?0.05:0.04,autoDetected:true,imported:true,doorHinge:'start',doorSwingSign:1};
-      op.id=uid(o.openingType==='door'?'D':'J');op.name=(o.openingType==='door'?'Porta auto ':'Janela auto ')+(i+1);
-      setOpeningHeights(op,o.openingType==='door'?2.10:1.20,o.openingType==='window'?0.90:null);S.shapes.push(op);
-    });
+
     numberOpeningsByPanel();
     S.selected=[];
     setMode('2d');render();panel();
-    const nDoors=openings.filter(o=>o.openingType==='door').length,nWindows=openings.filter(o=>o.openingType==='window').length;
-    msg('Auto desenho corrigido: '+segs.length+' paredes interiores, '+nDoors+' portas e '+nWindows+' janelas. A planta ficou alinhada com o desenho.');
+    const nDoors=geometry.openings.filter(o=>o.openingType==='door').length;
+    const nWindows=geometry.openings.filter(o=>o.openingType==='window').length;
+    const nExt=geometry.walls.filter(o=>o.wallType==='exterior').length;
+    const nInt=geometry.walls.filter(o=>o.wallType==='interior').length;
+    msg('Auto desenho V3: '+nExt+' troços exteriores, '+nInt+' troços interiores, '+nDoors+' portas e '+nWindows+' janelas. Os vãos ficaram abertos nas paredes.');
   }catch(e){
-    console.error(e);msg('Não foi possível detetar automaticamente. Use calibrar por dois pontos.');
+    console.error(e);msg('Não foi possível detetar automaticamente. Use calibrar por dois pontos e tente novamente.');
   }
 }
 
@@ -1562,7 +2088,7 @@ function renderEntityPanel(p,sel){
 function panel(){const p=$('#panelBody'),sel=S.selected.map(item).filter(Boolean);if(S.tab==='entity'){renderEntityPanel(p,sel)}
 if(S.tab==='image'){
   const prefs=importPrefs();
-  p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>Na importação, a aplicação procura paredes através de linhas paralelas, espessura e continuidade. A máscara escura fica separada da imagem original, para a intensidade funcionar imediatamente.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar por 2 pontos</button><button class="btn" id="autoImg">Auto desenho</button><button class="btn" id="redarkenImg">Refazer deteção</button><button class="btn" id="hideImg">Ocultar imagem</button><button class="btn danger" id="deleteImg">Apagar imagem</button></div>${S.image?`<p><b>Imagem carregada.</b> ${S.image.wallDarkened?'<span class="calc-ok">Máscara de paredes ativa ('+(S.image.wallZones||0)+' zonas).</span>':'Imagem original sem máscara.'} ${S.image.calibrated?'Escala definida por 2 pontos.':'Ainda sem calibração manual.'}</p>`:'<p>Nenhuma imagem carregada.</p>'}<div class="import-enhance-box"><label class="enhance-check"><input id="autoDarkWalls" type="checkbox" ${prefs.autoDarkenWalls?'checked':''}> Escurecer automaticamente todas as paredes estruturais visíveis</label><div class="field"><label>Intensidade: <b id="darknessValue">${Math.round((Number(prefs.wallDarkness)||0.78)*100)}%</b></label><input id="wallDarkness" type="range" min="0.05" max="1" step="0.01" value="${Number(prefs.wallDarkness)||0.78}"></div><div class="field"><label>Sensibilidade da deteção</label><select id="wallSensitivity"><option value="165">Baixa</option><option value="185">Normal</option><option value="205">Alta</option></select></div></div><div class="image-action-note">A intensidade é aplicada em tempo real, enquanto arrasta a barra. A alteração da sensibilidade refaz a deteção completa.</div></div><div class="card"><h3>Fluxo corrigido</h3><p>1. Importar imagem/PDF<br>2. Refazer deteção, se faltar alguma parede<br>3. Ajustar a intensidade em tempo real<br>4. Calibrar por 2 pontos<br>5. Auto desenho — a planta é alinhada automaticamente com a imagem<br>6. Gerar LSF e CSV</p></div>`;
+  p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>A deteção V3 reconhece a rede ortogonal de paredes, distingue paredes exteriores e interiores e mantém abertos os intervalos correspondentes a portas e janelas. A máscara escura permanece separada da imagem original.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar por 2 pontos</button><button class="btn" id="autoImg">Auto desenho V3</button><button class="btn" id="redarkenImg">Refazer deteção</button><button class="btn" id="hideImg">Ocultar imagem</button><button class="btn danger" id="deleteImg">Apagar imagem</button></div>${S.image?`<p><b>Imagem carregada.</b> ${S.image.wallDarkened?'<span class="calc-ok">Máscara ativa: '+(S.image.wallRuns||S.image.wallZones||0)+' troços de parede; '+(S.image.detectedOpenings||0)+' vãos preservados.</span>':'Imagem original sem máscara.'} ${S.image.calibrated?'Escala definida por 2 pontos.':'Ainda sem calibração manual.'}</p>`:'<p>Nenhuma imagem carregada.</p>'}<div class="import-enhance-box"><label class="enhance-check"><input id="autoDarkWalls" type="checkbox" ${prefs.autoDarkenWalls?'checked':''}> Escurecer automaticamente as paredes estruturais, sem tapar portas e janelas</label><div class="field"><label>Intensidade: <b id="darknessValue">${Math.round((Number(prefs.wallDarkness)||0.78)*100)}%</b></label><input id="wallDarkness" type="range" min="0.05" max="1" step="0.01" value="${Number(prefs.wallDarkness)||0.78}"></div><div class="field"><label>Sensibilidade da deteção</label><select id="wallSensitivity"><option value="165">Baixa</option><option value="185">Normal</option><option value="205">Alta</option></select></div></div><div class="image-action-note">A intensidade é atualizada em tempo real. Ao mudar a sensibilidade, a aplicação volta a analisar paredes, portas e janelas.</div></div><div class="card"><h3>Fluxo V3</h3><p>1. Importar imagem/PDF<br>2. Confirmar o escurecimento e os vãos<br>3. Calibrar por 2 pontos<br>4. Executar Auto desenho V3<br>5. Corrigir manualmente algum elemento excecional<br>6. Gerar LSF e CSV</p></div>`;
   $('#wallSensitivity').value=String(Number(prefs.darkThreshold)||185);
   $('#importImg').onclick=()=>$('#imageInput').click();$('#calibImg').onclick=startCalib;$('#autoImg').onclick=autoDetectScaleAndDrawing;$('#redarkenImg').onclick=refreshImportedWallDarkening;$('#hideImg').onclick=hideImportedImage;$('#deleteImg').onclick=deleteImportedImage;
   $('#autoDarkWalls').onchange=async e=>{prefs.autoDarkenWalls=e.target.checked;render();if(e.target.checked&&!S.image?.wallMaskSrc)await refreshImportedWallDarkening();};
@@ -1612,5 +2138,5 @@ if(S.tab==='signedProject'){
 if(S.tab==='csv'){p.innerHTML=`<div class="card"><h3>CSV de fabrico</h3><p>Exporta volumes, perfis LSF individuais e resumo de pré-cálculo.</p><button class="btn green" id="panelCSV">Gerar CSV</button></div>`;$('#panelCSV').onclick=exportCSV}}
 function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#signedBtn').onclick=()=>{S.tab='signedProject';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='signedProject'));panel();};$('#calibrateBtn').onclick=startCalib;$('#autoDetectBtn').onclick=autoDetectScaleAndDrawing;const darkBtn=$('#darkenWallsBtn');if(darkBtn)darkBtn.onclick=refreshImportedWallDarkening;$('#hideImageBtn').onclick=hideImportedImage;$('#deleteImageBtn').onclick=deleteImportedImage;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
 function demo(){const r={kind:'rect',a:{x:-2.4,y:-1.4,z:0},b:{x:2.4,y:1.4,z:0},height:2.7};finish(r);S.selected=[r.id];render();panel()}
-bind();setTool('select');demo();
+bind();setTool('select');render();panel();
 })();
