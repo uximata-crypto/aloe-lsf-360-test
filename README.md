@@ -46,3 +46,10 @@ Os parâmetros de versão adicionados ao `index.html` ajudam a evitar que o nave
 ## Funcionalidades anteriores mantidas
 
 Mantêm-se o Auto desenho, calibração por dois pontos, deteção de portas e janelas, edição de vãos, associação dos vãos aos painéis, numeração automática e exportação CSV.
+
+## Correção da deteção e intensidade das paredes
+
+- A intensidade passou a atuar sobre uma máscara separada da imagem original e responde em tempo real ao arrastar a barra.
+- A deteção usa continuidade, espessura e pares de linhas paralelas, permitindo encontrar mais paredes exteriores e interiores.
+- O Auto desenho alinha automaticamente o contorno detetado com a planta importada.
+- As etiquetas das paredes automáticas deixam de aparecer todas ao mesmo tempo; surgem ao selecionar a parede.
