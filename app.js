@@ -10,7 +10,7 @@ function clear(){while(svg.firstChild)svg.removeChild(svg.firstChild)}
 function msg(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2400)}
 function item(id){return S.shapes.find(x=>x.id===id)||S.profiles.find(x=>x.id===id)}
 function items(){return [...S.shapes,...S.profiles]}
-function toolName(t){return({select:'Selecionar',line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono',push:'Empurrar/Puxar',pan:'Mão / mover tela',move:'Mover',orbit:'Órbita',delete:'Apagar',calibrate:'Calibrar imagem'})[t]||t}
+function toolName(t){return({select:'Selecionar',line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono',push:'Empurrar/Puxar',pan:'Mão / mover tela',move:'Mover',orbit:'Órbita',delete:'Apagar',calibrate:'Calibrar por 2 pontos'})[t]||t}
 function shapeName(k){return({line:'Linha',rect:'Retângulo',circle:'Círculo',polygon:'Polígono',profile:'Perfil LSF'})[k]||k}
 function isClosed(s){return ['rect','circle','polygon'].includes(s.kind)}
 function screenPt(e){const r=svg.getBoundingClientRect();return{x:(e.clientX-r.left)*1200/r.width,y:(e.clientY-r.top)*760/r.height}}
@@ -160,9 +160,157 @@ function dxfBounds(entities){
   return {minX,minY,maxX,maxY};
 }
 
-function importImage(file){if(!file)return;const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{S.image={src:r.result,x:-3.4,y:2.5,w:Math.min(620,img.width),h:Math.min(430,img.height),scale:1};setMode('2d');msg('Imagem importada. Use Calibrar imagem.');panel();render()};img.src=r.result};r.readAsDataURL(file)}
+
+function loadImageElement(src){
+  return new Promise((resolve,reject)=>{
+    const im=new Image();
+    im.onload=()=>resolve(im);
+    im.onerror=reject;
+    im.src=src;
+  });
+}
+function groupRuns(values,threshold,minWidth=1){
+  const groups=[];let start=-1;
+  for(let i=0;i<values.length;i++){
+    if(values[i]>=threshold){if(start<0)start=i}
+    else if(start>=0){if(i-start>=minWidth)groups.push({a:start,b:i-1,mid:(start+i-1)/2,max:Math.max(...values.slice(start,i))});start=-1}
+  }
+  if(start>=0&&values.length-start>=minWidth)groups.push({a:start,b:values.length-1,mid:(start+values.length-1)/2,max:Math.max(...values.slice(start))});
+  return groups;
+}
+function getDarkMap(canvas){
+  const ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height, data=ctx.getImageData(0,0,w,h).data;
+  const dark=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const i=(y*w+x)*4, r=data[i],g=data[i+1],b=data[i+2],a=data[i+3];
+      const gray=(r+g+b)/3;
+      if(a>20 && gray<115)dark[y*w+x]=1;
+    }
+  }
+  return {dark,w,h};
+}
+function detectBuildingBox(map){
+  const {dark,w,h}=map, row=new Array(h).fill(0), col=new Array(w).fill(0);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(dark[y*w+x]){row[y]++;col[x]++}
+  const rowGroups=groupRuns(row,w*0.18,2);
+  const colGroups=groupRuns(col,h*0.16,2);
+  let top=rowGroups[0], bottom=rowGroups[rowGroups.length-1], left=colGroups[0], right=colGroups[colGroups.length-1];
+  if(!top||!bottom||!left||!right){
+    // fallback: bounding box of dark pixels, excluding a small border
+    let minX=w,maxX=0,minY=h,maxY=0;
+    for(let y=Math.floor(h*.05);y<h*.95;y++)for(let x=Math.floor(w*.03);x<w*.97;x++)if(dark[y*w+x]){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y)}
+    return {x1:minX,y1:minY,x2:maxX,y2:maxY};
+  }
+  return {x1:left.mid,y1:top.mid,x2:right.mid,y2:bottom.mid};
+}
+function detectWallSegments(map,box,widthM,heightM){
+  const {dark,w,h}=map;
+  const x1=Math.max(0,Math.floor(box.x1)),x2=Math.min(w-1,Math.ceil(box.x2));
+  const y1=Math.max(0,Math.floor(box.y1)),y2=Math.min(h-1,Math.ceil(box.y2));
+  const bw=x2-x1,bh=y2-y1;
+  const col=new Array(bw).fill(0), row=new Array(bh).fill(0);
+  for(let y=y1;y<=y2;y++){
+    for(let x=x1;x<=x2;x++){
+      if(dark[y*w+x]){col[x-x1]++;row[y-y1]++}
+    }
+  }
+  const vGroups=groupRuns(col,bh*0.09,2).filter(g=>g.max>bh*0.14);
+  const hGroups=groupRuns(row,bw*0.09,2).filter(g=>g.max>bw*0.14);
+  const segs=[];
+  function pxToWorld(px,py){
+    return {x:(px-x1)/bw*widthM-widthM/2, y:heightM/2-(py-y1)/bh*heightM, z:0};
+  }
+  vGroups.forEach(g=>{
+    const x=Math.round(x1+g.mid), bandA=Math.max(x1,Math.floor(x1+g.a-2)), bandB=Math.min(x2,Math.ceil(x1+g.b+2));
+    let start=-1;
+    for(let y=y1;y<=y2;y++){
+      let cnt=0;for(let xx=bandA;xx<=bandB;xx++)cnt+=dark[y*w+xx];
+      if(cnt>=Math.max(1,(bandB-bandA+1)*0.25)){if(start<0)start=y}
+      else if(start>=0){if(y-start>bh*0.08){const a=pxToWorld(x,start),b=pxToWorld(x,y-1);segs.push({a,b})}start=-1}
+    }
+    if(start>=0&&y2-start>bh*0.08){const a=pxToWorld(x,start),b=pxToWorld(x,y2);segs.push({a,b})}
+  });
+  hGroups.forEach(g=>{
+    const y=Math.round(y1+g.mid), bandA=Math.max(y1,Math.floor(y1+g.a-2)), bandB=Math.min(y2,Math.ceil(y1+g.b+2));
+    let start=-1;
+    for(let x=x1;x<=x2;x++){
+      let cnt=0;for(let yy=bandA;yy<=bandB;yy++)cnt+=dark[yy*w+x];
+      if(cnt>=Math.max(1,(bandB-bandA+1)*0.25)){if(start<0)start=x}
+      else if(start>=0){if(x-start>bw*0.08){const a=pxToWorld(start,y),b=pxToWorld(x-1,y);segs.push({a,b})}start=-1}
+    }
+    if(start>=0&&x2-start>bw*0.08){const a=pxToWorld(start,y),b=pxToWorld(x2,y);segs.push({a,b})}
+  });
+  // remove tiny/duplicate segments
+  const clean=[];
+  segs.forEach(s=>{
+    const L=Math.hypot(s.b.x-s.a.x,s.b.y-s.a.y);
+    if(L<0.75)return;
+    const key=[n(s.a.x,1),n(s.a.y,1),n(s.b.x,1),n(s.b.y,1)].join('|');
+    if(!clean.some(c=>c.key===key))clean.push({...s,key});
+  });
+  return clean.slice(0,80);
+}
+async function detectDimensionsOCR(){
+  if(!S.image || !window.Tesseract)return {};
+  try{
+    msg(S.image?.calibrated?'Escala manual já definida. A detetar paredes...':'A ler cotas da planta com OCR...');
+    const res=await Tesseract.recognize(S.image.src,'eng',{logger:m=>{}});
+    const words=(res.data.words||[]).map(w=>({text:w.text||'',bbox:w.bbox||{}}));
+    const nums=words.map(w=>{
+      const m=w.text.replace(',','.').match(/\d+(?:\.\d+)?/);
+      return m?{value:Number(m[0]),bbox:w.bbox,text:w.text}:null;
+    }).filter(x=>x&&x.value>0.5&&x.value<100);
+    const top=nums.filter(x=>x.bbox.y1 < (res.data?.height||1000)*0.28).sort((a,b)=>b.value-a.value);
+    const right=nums.filter(x=>x.bbox.x0 > (res.data?.width||1000)*0.72).sort((a,b)=>b.value-a.value);
+    const all=nums.sort((a,b)=>b.value-a.value);
+    return {width:(top[0]?.value || all[0]?.value), height:(right[0]?.value || all.find(x=>x.value!==top[0]?.value)?.value), nums};
+  }catch(e){console.warn(e);return {}}
+}
+async function autoDetectScaleAndDrawing(){
+  if(!S.image)return msg('Importe primeiro a planta/imagem/PDF.');
+  try{
+    const im=await loadImageElement(S.image.src);
+    const maxW=1400, scale=Math.min(1,maxW/im.width);
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(im.width*scale);canvas.height=Math.round(im.height*scale);
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(im,0,0,canvas.width,canvas.height);
+    const map=getDarkMap(canvas);
+    const box=detectBuildingBox(map);
+    let dims=await detectDimensionsOCR();
+    let widthM=Number(dims.width)||0, heightM=Number(dims.height)||0;
+    if(S.image?.calibrated){
+      widthM=Number(prompt('Largura exterior da planta em metros para criar o retângulo exterior:', widthM||'10.00'))||10;
+      heightM=Number(prompt('Comprimento/profundidade exterior em metros:', heightM||'7.00'))||7;
+    } else if(!widthM || !heightM || Math.abs(widthM-heightM)<0.01){
+      widthM=Number(prompt('Largura exterior detetada? Indique em metros:', widthM||'10.00'))||10;
+      heightM=Number(prompt('Comprimento/profundidade exterior em metros:', heightM||'7.00'))||7;
+    }
+    // Remove previous auto-detected lines and rectangle
+    S.shapes=S.shapes.filter(s=>!s.autoDetected);
+    const rect={kind:'rect',a:{x:-widthM/2,y:-heightM/2,z:0},b:{x:widthM/2,y:heightM/2,z:0},height:Number(S.calc?.height)||2.7,autoDetected:true};
+    rect.id=uid('A');rect.name='Planta exterior auto '+n(widthM)+'x'+n(heightM)+' m';
+    S.shapes.push(rect);
+    const segs=detectWallSegments(map,box,widthM,heightM);
+    segs.forEach((s,i)=>{
+      const line={kind:'line',a:s.a,b:s.b,height:0,autoDetected:true,imported:true};
+      line.id=uid('W');line.name='Parede auto '+(i+1);
+      S.shapes.push(line);
+    });
+    S.selected=S.shapes.filter(s=>s.autoDetected).map(s=>s.id);
+    setMode('2d');render();panel();
+    msg('Escala/desenho detetados: '+n(widthM)+' x '+n(heightM)+' m, '+segs.length+' linhas de parede.');
+  }catch(e){
+    console.error(e);
+    msg('Não foi possível detetar automaticamente. Use calibrar por dois pontos.');
+  }
+}
+
+function importImage(file){if(!file)return;const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{S.image={src:r.result,x:-3.4,y:2.5,w:Math.min(620,img.width),h:Math.min(430,img.height),scale:1};setMode('2d');msg('Imagem importada. Use Calibrar por 2 pontos.');panel();render()};img.src=r.result};r.readAsDataURL(file)}
 function startCalib(){if(!S.image)return msg('Importe primeiro uma imagem.');S.calibration={points:[]};setTool('calibrate');msg('Clique em dois pontos conhecidos na imagem.')}
-function calibClick(w){if(!S.calibration)return;S.calibration.points.push(w);if(S.calibration.points.length===2){render();const meters=Number(prompt('Distância real entre os pontos, em metros:', '5.00'));if(meters>0){const [a,b]=S.calibration.points,cur=Math.hypot(b.x-a.x,b.y-a.y);if(cur>0.001){S.image.scale*=meters/cur;msg('Imagem calibrada para '+n(meters)+' m.')}}S.calibration=null;setTool('select');render();panel()}else{render();msg('Clique no segundo ponto conhecido.')}}
+function calibClick(w){if(!S.calibration)return;S.calibration.points.push(w);if(S.calibration.points.length===2){render();const meters=Number(prompt('Distância real entre os pontos, em metros:', '5.00'));if(meters>0){const [a,b]=S.calibration.points,cur=Math.hypot(b.x-a.x,b.y-a.y);if(cur>0.001){S.image.scale*=meters/cur;S.image.calibrated=true;S.image.calibrationMeters=meters;msg('Escala calibrada por 2 pontos: '+n(meters)+' m.')}}S.calibration=null;setTool('select');render();panel()}else{render();msg('Clique no segundo ponto conhecido.')}}
 function saveProject(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));a.download='aloe_lsf360_projeto.json';a.click()}
 function openProject(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{Object.assign(S,JSON.parse(r.result));render();panel();msg('Projeto aberto.')}catch{msg('Ficheiro inválido.')}};r.readAsText(file)}
 function lineLength(o){return Math.hypot((o.b.x-o.a.x),(o.b.y-o.a.y),(o.b.z||0)-(o.a.z||0))}
@@ -274,13 +422,13 @@ function exportCSV(){
   a.download='aloe_lsf360_fabrico.csv';a.click();msg('CSV gerado.');
 }
 function panel(){const p=$('#panelBody'),sel=S.selected.map(item).filter(Boolean);if(S.tab==='entity'){p.innerHTML=`<div class="card"><h3>Propriedades</h3>${sel.length?`<p><b>${sel.length} elemento(s) selecionado(s)</b></p><p>Referência: ${sel[0].name}</p><p>Tipo: ${sel[0].kind==='profile'?sel[0].type:shapeName(sel[0].kind)}</p><p>Perfil: ${sel[0].profile||'—'}</p><p>Altura: ${sel[0].height?n(sel[0].height)+' m':'—'}</p>`:'<p>Selecione um objeto no desenho ou na lista.</p>'}</div><div class="card"><h3>Objetos do projeto</h3><div class="list">${items().map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.kind==='profile'?o.type:shapeName(o.kind)} · ${o.profile||'—'}</small></div><button data-pick="${o.id}">Selecionar</button></div>`).join('')||'<p>Nenhum objeto criado.</p>'}</div></div>`;$$('[data-pick]').forEach(b=>b.onclick=()=>select(item(b.dataset.pick),S.multi))}
-if(S.tab==='image'){p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>Importa imagem, PDF ou DXF. DWG é indicado para conversão, pois o navegador não lê DWG nativo. Depois calibre a escala e desenhe por cima.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar escala</button></div>${S.image?`<p><b>Imagem carregada.</b> Escala visual: ${n(S.image.scale,3)}</p>`:'<p>Nenhuma imagem carregada.</p>'}</div><div class="card"><h3>Fluxo</h3><p>1. Importar imagem<br>2. Calibrar por 2 pontos<br>3. Desenhar paredes/volumes<br>4. Empurrar/Puxar<br>5. Gerar LSF<br>6. Pré-cálculo<br>7. CSV</p></div>`;$('#importImg').onclick=()=>$('#imageInput').click();$('#calibImg').onclick=startCalib}
+if(S.tab==='image'){p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>Importa imagem, PDF ou DXF. DWG é indicado para conversão, pois o navegador não lê DWG nativo. Depois calibre a escala e desenhe por cima.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar por 2 pontos</button><button class="btn" id="autoImg">Auto desenho</button></div>${S.image?`<p><b>Imagem carregada.</b> ${S.image.calibrated?'Escala definida por 2 pontos.':'Ainda sem calibração manual.'} Escala visual: ${n(S.image.scale,3)}</p>`:'<p>Nenhuma imagem carregada.</p>'}</div><div class="card"><h3>Fluxo</h3><p>1. Importar imagem/PDF<br>2. Calibrar por 2 pontos com medida real<br>3. Usar Auto desenho ou desenhar manualmente<br>4. Gerar LSF<br>5. Selecionar perfis<br>6. Pré-cálculo<br>7. CSV</p></div>`;$('#importImg').onclick=()=>$('#imageInput').click();$('#calibImg').onclick=startCalib;$('#autoImg').onclick=autoDetectScaleAndDrawing}
 if(S.tab==='selection'){const profiles=[...new Set(items().map(o=>o.profile).filter(Boolean))];p.innerHTML=`<div class="card"><h3>Seleção</h3><div class="btns"><button class="btn" id="multiBtn">${S.multi?'Desativar':'Ativar'} seleção múltipla</button><button class="btn" id="clearBtn">Limpar</button></div><div class="field"><label>Tipo</label><select id="filterType"><option value="all">Todos</option><option value="rect">Retângulos</option><option value="circle">Círculos</option><option value="polygon">Polígonos</option><option value="profile">Perfis LSF</option></select></div><div class="field"><label>Perfil</label><select id="filterProfile"><option value="all">Todos</option>${profiles.map(x=>`<option>${x}</option>`).join('')}</select></div><button class="btn green" id="filterGo">Selecionar filtrados</button></div>`;$('#multiBtn').onclick=()=>{S.multi=!S.multi;panel()};$('#clearBtn').onclick=()=>select(null);$('#filterGo').onclick=()=>{const t=$('#filterType').value,pr=$('#filterProfile').value;S.selected=items().filter(o=>(t==='all'||(t==='profile'?o.kind==='profile':o.kind===t))&&(pr==='all'||o.profile===pr)).map(o=>o.id);render();panel();$('#selLabel').textContent=S.selected.length+' elemento(s) selecionado(s).'}}
 if(S.tab==='structure'){const r=S.calc.results;p.innerHTML=`<div class="card"><h3>Pré-cálculo estrutural LSF</h3><p>Estimativa técnica para preparação de fabrico. Não substitui projeto estrutural assinado.</p><div class="field"><label>Altura padrão das paredes (m)</label><input id="calcHeight" type="number" step="0.05" value="${S.calc.height}"></div><div class="field"><label>Espaçamento montantes (m)</label><select id="calcSpacing"><option value="0.40">0,40</option><option value="0.60">0,60</option></select></div><div class="field"><label>Vento indicativo kN/m²</label><input id="calcWind" type="number" step="0.05" value="${S.calc.wind}"></div><div class="field"><label>Carga permanente kN/m²</label><input id="calcDead" type="number" step="0.05" value="${S.calc.dead}"></div><div class="field"><label>Sobrecarga kN/m²</label><input id="calcLive" type="number" step="0.05" value="${S.calc.live}"></div><button class="btn green" id="runCalc">Executar pré-cálculo</button></div>${r?`<div class="card"><h3>Resultados</h3><div class="kpi"><div><b>${r.panels}</b><span>painéis/volumes</span></div><div><b>${n(r.wallLength)} m</b><span>perímetro total</span></div><div><b>${r.studs}</b><span>montantes estimados</span></div><div><b>${n(r.mass)} kg</b><span>aço estimado</span></div></div>${r.warn.length?`<p class="calc-warn">${r.warn.join('<br>')}</p>`:'<p class="calc-ok">Pré-verificação sem avisos críticos.</p>'}<p>Confirme cargas, vãos, aberturas, ligações, contraventamento e normas aplicáveis com técnico responsável.</p></div>`:''}`;$('#calcSpacing').value=S.calc.spacing;$('#runCalc').onclick=()=>{S.calc.height=Number($('#calcHeight').value)||2.7;S.calc.spacing=Number($('#calcSpacing').value)||0.6;S.calc.wind=Number($('#calcWind').value)||0.5;S.calc.dead=Number($('#calcDead').value)||0.4;S.calc.live=Number($('#calcLive').value)||0.75;runCalc()}}
 if(S.tab==='profiles'){p.innerHTML=`<div class="card"><h3>Perfis LSF</h3><div class="profile-gallery"><figure><img src="assets/lsf-profile-c.svg"><figcaption>Montante C</figcaption></figure><figure><img src="assets/lsf-profile-u.svg"><figcaption>Guia U</figcaption></figure><figure><img src="assets/lsf-profile-l.svg"><figcaption>Cantoneira L</figcaption></figure></div><div class="field"><label>Montante</label><select id="stud"><option>C90x40x0.95</option><option>C100x40x0.95</option><option>C140x40x1.20</option><option>C200x50x1.50</option><option>C300x50x2.00</option></select></div><div class="field"><label>Guia</label><select id="track"><option>U90x40x0.95</option><option>U100x40x0.95</option><option>U140x40x1.20</option><option>U200x50x1.50</option><option>U300x50x2.00</option></select></div><div class="btns"><button class="btn green" id="applyProfiles">Aplicar à seleção</button><button class="btn" id="selStuds">Selecionar montantes</button><button class="btn" id="selTracks">Selecionar guias</button><button class="btn" id="selAllProfiles">Selecionar todos perfis</button></div></div><div class="card"><h3>Perfis gerados</h3><div class="list">${S.profiles.map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.type} · ${o.profile} · ${n(lineLength(o))} m</small></div><button data-profilepick="${o.id}">Selecionar</button></div>`).join('')||'<p>Ainda não existem perfis. Clique em Gerar LSF.</p>'}</div></div>`;$('#stud').value=S.calc.studProfile;$('#track').value=S.calc.trackProfile;$('#applyProfiles').onclick=()=>{S.calc.studProfile=$('#stud').value;S.calc.trackProfile=$('#track').value;S.selected.map(item).filter(o=>o?.kind==='profile').forEach(o=>o.profile=o.type==='Montante'?S.calc.studProfile:S.calc.trackProfile);render();panel();msg('Perfis aplicados.')};$('#selStuds').onclick=()=>{S.selected=S.profiles.filter(p=>p.type==='Montante').map(p=>p.id);render();panel();$('#selLabel').textContent=S.selected.length+' montantes selecionados.'};$('#selTracks').onclick=()=>{S.selected=S.profiles.filter(p=>p.type&&p.type.startsWith('Guia')).map(p=>p.id);render();panel();$('#selLabel').textContent=S.selected.length+' guias selecionadas.'};$('#selAllProfiles').onclick=()=>{S.selected=S.profiles.map(p=>p.id);render();panel();$('#selLabel').textContent=S.selected.length+' perfis selecionados.'};$$('[data-profilepick]').forEach(b=>b.onclick=()=>select(item(b.dataset.profilepick),S.multi))}
 if(S.tab==='geo'){p.innerHTML=`<div class="card"><h3>Geolocalização</h3><p>Rua, número, código postal e localidade para preparar o terreno do projeto.</p><div class="field"><label>Rua e número</label><input placeholder="Rua das Acácias, 123"></div><div class="field"><label>Código postal</label><input placeholder="3080-123"></div><div class="field"><label>Localidade</label><input placeholder="Figueira da Foz"></div><button class="btn green" onclick="alert('Localização guardada no projeto de teste.')">Guardar localização</button></div>`}
 if(S.tab==='csv'){p.innerHTML=`<div class="card"><h3>CSV de fabrico</h3><p>Exporta volumes, perfis LSF individuais e resumo de pré-cálculo.</p><button class="btn green" id="panelCSV">Gerar CSV</button></div>`;$('#panelCSV').onclick=exportCSV}}
-function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#calibrateBtn').onclick=startCalib;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
+function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#calibrateBtn').onclick=startCalib;$('#autoDetectBtn').onclick=autoDetectScaleAndDrawing;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
 function demo(){const r={kind:'rect',a:{x:-2.4,y:-1.4,z:0},b:{x:2.4,y:1.4,z:0},height:2.7};finish(r);S.selected=[r.id];render();panel()}
 bind();setTool('select');demo();
 })();

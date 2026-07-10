@@ -43,7 +43,8 @@
     <button class="tool" data-tool="move"><b>✥</b><span>Mover</span></button>
     <button class="tool" data-tool="orbit"><b>◉</b><span>Órbita</span></button>
     <button class="tool" data-tool="delete"><b>⌫</b><span>Apagar</span></button>
-    <button class="tool" id="calibrateBtn"><b>📏</b><span>Calibrar imagem</span></button>
+    <button class="tool" id="calibrateBtn"><b>📏</b><span>Calibrar 2 pontos</span></button>
+    <button class="tool" id="autoDetectBtn"><b>🧭</b><span>Auto desenho</span></button>
     <button class="tool green" id="lsfBtn"><b>▦</b><span>Gerar LSF</span></button>
     <button class="tool green" id="calcBtn"><b>Σ</b><span>Pré-cálculo</span></button>
     <button class="tool green" id="csvBtn"><b>CSV</b><span>Gerar CSV</span></button>
@@ -107,6 +108,7 @@
 <input id="projectInput" type="file" accept=".json" hidden>
 <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,application/pdf,.pdf,.dxf,.dwg" hidden>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

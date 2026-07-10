@@ -1,28 +1,38 @@
-# Aloe LSF 360 — Mão / Mover Tela
+# Aloe LSF 360 — Calibrar por 2 Pontos + Auto Desenho
 
-## Nova função
+## Correção pedida
 
-Foi acrescentada a ferramenta **Mão**.
+A calibração manual por dois pontos continua ativa e passa a estar mais clara.
 
-## Como funciona
+Agora há duas funções separadas:
 
-- Clique em **Mão** na barra superior ou lateral.
-- Arraste a tela com o rato.
-- Em 2D move a planta/imagem/desenho na tela.
-- Em 3D move a vista sem rodar o modelo.
-- Não altera a posição dos objetos.
+## 1. Calibrar por 2 pontos
 
-## Diferença entre ferramentas
+Use quando sabe uma medida real da planta.
 
-- **Mão**: move a tela/vista.
-- **Mover**: move os objetos selecionados.
-- **Órbita**: roda a vista 3D.
-- **Empurrar/Puxar**: extrude volumes.
+Exemplo:
+- clique no início de uma parede;
+- clique no fim da parede;
+- escreva a medida real, por exemplo `10.00` ou `7.00`.
 
-Mantém as funções anteriores:
-- Importar PDF/DXF/DWG;
-- calibrar imagem;
-- gerar LSF;
-- selecionar perfis;
-- pré-cálculo;
-- CSV.
+Esta é a escala correta e deve prevalecer sobre qualquer leitura automática.
+
+## 2. Auto desenho
+
+Use depois de calibrar, para tentar detetar paredes automaticamente.
+
+Fluxo recomendado:
+1. Importar imagem/PDF/DXF.
+2. Clicar em **Calibrar por 2 pontos**.
+3. Marcar os dois pontos de uma cota real.
+4. Escrever a medida correta.
+5. Clicar em **Auto desenho**.
+6. Rever/corrigir linhas.
+7. Clicar em **Gerar LSF**.
+8. Selecionar perfis.
+9. Executar pré-cálculo.
+10. Gerar CSV.
+
+## Nota
+
+O Auto desenho ajuda a acelerar, mas a escala de confiança deve ser sempre a que o utilizador indica com dois pontos.

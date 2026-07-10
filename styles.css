@@ -14,3 +14,7 @@
 
 .workspace.pan-mode{cursor:grab}
 .workspace.pan-mode:active{cursor:grabbing}
+
+.auto-wall{stroke:#9b2c2c;stroke-width:3.2;fill:none;vector-effect:non-scaling-stroke}
+.detect-box{fill:none;stroke:#d7332f;stroke-width:3;stroke-dasharray:10 6;vector-effect:non-scaling-stroke}
+.detect-note{background:#eefaf2;border:1px solid #b7ddce;border-radius:10px;padding:9px;color:#0b683a;font-size:12px}
