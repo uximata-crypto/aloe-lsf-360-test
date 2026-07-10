@@ -1,39 +1,30 @@
-# Aloe LSF 360 — Cálculo Estrutural + Imagem + CSV
+# Aloe LSF 360 — Importar PDF / DXF / DWG + CSV
 
-## O que falta ficou acrescentado neste pack
+## Novidades
 
-- Menu superior funcional:
-  - Novo
-  - Abrir projeto JSON
-  - Salvar como JSON
-  - Importar imagem/planta
-  - Exportar CSV
-  - Localização
-  - Imprimir
+A função **Importar imagem** passa a aceitar:
 
-- Importação de imagem/planta:
-  - PNG/JPG/WebP/SVG
-  - imagem no fundo 2D
-  - calibração de escala por dois pontos
-  - desenho por cima da imagem
+- PNG / JPG / WebP / SVG;
+- PDF — é importada a primeira página como imagem de fundo;
+- DXF — importação básica de entidades `LINE` e `LWPOLYLINE`;
+- DWG — o ficheiro é detetado, mas precisa de conversão para DXF.
 
-- Pré-cálculo estrutural indicativo:
-  - altura padrão
-  - espaçamento de montantes
-  - vento indicativo
-  - carga permanente
-  - sobrecarga
-  - perímetro total
-  - número estimado de montantes
-  - metros lineares de guias/montantes
-  - peso estimado de aço
-  - avisos de verificação
+## Nota sobre DWG
 
-- CSV:
-  - volumes
-  - perfis individuais C/U
-  - comprimentos
-  - resumo de pré-cálculo
+DWG é um formato proprietário. Não é seguro prometer leitura DWG nativa diretamente no navegador. O caminho correto é:
 
-## Nota técnica
-Este módulo faz uma pré-verificação e estimativa para preparação de fabrico. Não substitui projeto estrutural assinado por técnico habilitado.
+1. Converter DWG para DXF com serviço CAD no servidor, ODA File Converter, AutoCAD, LibreDWG ou outro conversor licenciado.
+2. Importar o DXF resultante.
+3. Calibrar/verificar escala.
+4. Gerar estrutura LSF e CSV.
+
+## Fluxo recomendado
+
+1. Clique em **Importar imagem**.
+2. Escolha PDF, DXF ou imagem.
+3. Se for PDF/imagem, clique em **Calibrar imagem** e marque dois pontos conhecidos.
+4. Desenhe por cima ou use as linhas DXF importadas como referência.
+5. Use **Empurrar/Puxar**.
+6. Use **Gerar LSF**.
+7. Use **Pré-cálculo**.
+8. Use **Gerar CSV**.
