@@ -6,3 +6,8 @@
 .dxf-entity{fill:none;stroke:#1e6d97;stroke-width:2.3;vector-effect:non-scaling-stroke;opacity:.86}
 .dxf-entity.selected{stroke:#f2a229;stroke-width:4}
 .import-note{background:#fff8e8;border:1px solid #f2d18b;border-radius:10px;padding:9px;color:#7a5300;font-size:12px}
+
+.profile-hit{stroke:transparent;stroke-width:16;fill:none;pointer-events:stroke}
+.calc-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.calc-table td,.calc-table th{border:1px solid #d8e8e8;padding:6px;text-align:left}
+.calc-table th{background:#f0faf4;color:#0c7040}

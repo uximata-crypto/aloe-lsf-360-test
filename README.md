@@ -1,30 +1,29 @@
-# Aloe LSF 360 — Importar PDF / DXF / DWG + CSV
+# Aloe LSF 360 — Cálculo e Perfis Corrigidos
 
-## Novidades
+## Correções
 
-A função **Importar imagem** passa a aceitar:
+- O pré-cálculo já não sai a zero quando existem linhas importadas/desenhadas.
+- O botão **Gerar LSF** agora funciona também a partir de linhas/DXF:
+  - se houver volumes fechados, gera LSF por perímetro;
+  - se não houver volumes, usa as linhas como eixos de parede;
+  - se existirem linhas selecionadas, gera LSF só dessas linhas.
+- Os perfis LSF ficam selecionáveis:
+  - clicando no desenho;
+  - pela lista no separador **Perfis**;
+  - por botões: selecionar montantes, guias ou todos os perfis.
+- O CSV exporta perfis individuais quando existirem; se ainda não gerou LSF, exporta linhas como eixos de parede.
+- O pré-cálculo mostra comprimento de paredes, montantes, guias e massa estimada.
 
-- PNG / JPG / WebP / SVG;
-- PDF — é importada a primeira página como imagem de fundo;
-- DXF — importação básica de entidades `LINE` e `LWPOLYLINE`;
-- DWG — o ficheiro é detetado, mas precisa de conversão para DXF.
+## Fluxo correto
 
-## Nota sobre DWG
+1. Importar PDF/DXF/imagem.
+2. Se for imagem/PDF, calibrar por dois pontos.
+3. Desenhar por cima ou usar linhas DXF.
+4. Selecionar as linhas pretendidas, se quiser.
+5. Clicar em **Gerar LSF**.
+6. Ir ao separador **Perfis** e selecionar/alterar perfis.
+7. Clicar em **Pré-cálculo**.
+8. Clicar em **Gerar CSV**.
 
-DWG é um formato proprietário. Não é seguro prometer leitura DWG nativa diretamente no navegador. O caminho correto é:
-
-1. Converter DWG para DXF com serviço CAD no servidor, ODA File Converter, AutoCAD, LibreDWG ou outro conversor licenciado.
-2. Importar o DXF resultante.
-3. Calibrar/verificar escala.
-4. Gerar estrutura LSF e CSV.
-
-## Fluxo recomendado
-
-1. Clique em **Importar imagem**.
-2. Escolha PDF, DXF ou imagem.
-3. Se for PDF/imagem, clique em **Calibrar imagem** e marque dois pontos conhecidos.
-4. Desenhe por cima ou use as linhas DXF importadas como referência.
-5. Use **Empurrar/Puxar**.
-6. Use **Gerar LSF**.
-7. Use **Pré-cálculo**.
-8. Use **Gerar CSV**.
+## Nota
+É um pré-cálculo indicativo para preparação de fabrico. Não substitui cálculo estrutural regulamentar assinado.
