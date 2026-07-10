@@ -1,29 +1,28 @@
-# Aloe LSF 360 — Cálculo e Perfis Corrigidos
+# Aloe LSF 360 — Mão / Mover Tela
 
-## Correções
+## Nova função
 
-- O pré-cálculo já não sai a zero quando existem linhas importadas/desenhadas.
-- O botão **Gerar LSF** agora funciona também a partir de linhas/DXF:
-  - se houver volumes fechados, gera LSF por perímetro;
-  - se não houver volumes, usa as linhas como eixos de parede;
-  - se existirem linhas selecionadas, gera LSF só dessas linhas.
-- Os perfis LSF ficam selecionáveis:
-  - clicando no desenho;
-  - pela lista no separador **Perfis**;
-  - por botões: selecionar montantes, guias ou todos os perfis.
-- O CSV exporta perfis individuais quando existirem; se ainda não gerou LSF, exporta linhas como eixos de parede.
-- O pré-cálculo mostra comprimento de paredes, montantes, guias e massa estimada.
+Foi acrescentada a ferramenta **Mão**.
 
-## Fluxo correto
+## Como funciona
 
-1. Importar PDF/DXF/imagem.
-2. Se for imagem/PDF, calibrar por dois pontos.
-3. Desenhar por cima ou usar linhas DXF.
-4. Selecionar as linhas pretendidas, se quiser.
-5. Clicar em **Gerar LSF**.
-6. Ir ao separador **Perfis** e selecionar/alterar perfis.
-7. Clicar em **Pré-cálculo**.
-8. Clicar em **Gerar CSV**.
+- Clique em **Mão** na barra superior ou lateral.
+- Arraste a tela com o rato.
+- Em 2D move a planta/imagem/desenho na tela.
+- Em 3D move a vista sem rodar o modelo.
+- Não altera a posição dos objetos.
 
-## Nota
-É um pré-cálculo indicativo para preparação de fabrico. Não substitui cálculo estrutural regulamentar assinado.
+## Diferença entre ferramentas
+
+- **Mão**: move a tela/vista.
+- **Mover**: move os objetos selecionados.
+- **Órbita**: roda a vista 3D.
+- **Empurrar/Puxar**: extrude volumes.
+
+Mantém as funções anteriores:
+- Importar PDF/DXF/DWG;
+- calibrar imagem;
+- gerar LSF;
+- selecionar perfis;
+- pré-cálculo;
+- CSV.
