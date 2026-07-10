@@ -1,40 +1,28 @@
-# Aloe LSF 360 — Projeto Estrutural Assinado
+# Aloe LSF 360 — Apagar Imagem Importada
 
-## Novo módulo
+## Nova função
 
-Foi acrescentado o separador **Projeto assinado**.
+Depois de importar uma planta/PDF/imagem e usar **Auto desenho**, passa a ser possível:
 
-## Técnico responsável
+- **Ocultar imagem**;
+- **Apagar imagem**.
 
-Pré-preenchido com:
+## Diferença
 
-- Eng.º Joaquim Diniz
-- Especialidade: Engenheiro Civil
+### Ocultar imagem
+A imagem deixa de aparecer, mas continua guardada no projeto. Pode voltar a ligar a camada **Imagem/planta**.
 
-## Dados importados do projeto de arquitetura
+### Apagar imagem
+A imagem importada é removida do projeto. As linhas, paredes, perfis, cálculo e CSV mantêm-se.
 
-- Requerente: Jorge Simões
-- Local: Granja do Ulmeiro
-- Processo: PJD012
-- Data: Jun.2026
-- Planta: Bungalow T2
-- Escala: 1/100
-- Dimensão exterior: 10,00 m x 7,00 m
-- Altura alçado/parede: 2,36 m
-- Elevação cobertura/cume: 1,25 m
-- Altura total estimada: 3,61 m
-- Cobertura: duas águas
+## Fluxo recomendado
 
-## Funções
-
-- Guardar dados do engenheiro;
-- indicar n.º da Ordem/associação;
-- indicar seguro profissional;
-- indicar código de verificação;
-- gerar dossier técnico em TXT;
-- imprimir/guardar como PDF pelo navegador;
-- integrar pré-cálculo, perfis, paredes e CSV.
-
-## Nota legal/técnica
-
-A app gera um dossier técnico base. O projeto estrutural assinado só existe após validação, complementação e assinatura por engenheiro civil habilitado.
+1. Importar planta/PDF/imagem.
+2. Calibrar por 2 pontos.
+3. Auto desenho.
+4. Rever/corrigir linhas.
+5. Clicar em **Ocultar imagem** ou **Apagar imagem**.
+6. Continuar apenas com o desenho limpo.
+7. Gerar LSF.
+8. Pré-cálculo.
+9. CSV.

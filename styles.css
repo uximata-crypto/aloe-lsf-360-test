@@ -34,3 +34,8 @@
 .signed-section h4{margin:0 0 8px;color:#07354d}
 .signed-warning{background:#fff7e8;border:1px solid #e9c77b;color:#704d00;border-radius:10px;padding:10px;font-size:12px;line-height:1.35}
 .signature-box{height:90px;border:1px dashed #9bb8bd;border-radius:10px;margin-top:8px;display:flex;align-items:end;justify-content:center;padding:8px;color:#607a88;font-size:12px}
+
+.wall-int{stroke:#0d6d9e;stroke-width:3.4;fill:none;vector-effect:non-scaling-stroke}
+.wall-ext{stroke:#f2a229;stroke-width:4.6;fill:none;vector-effect:non-scaling-stroke}
+
+.image-action-note{font-size:12px;color:#5d7784;background:#f4fbfb;border:1px solid #d8e8e8;border-radius:10px;padding:8px;margin-top:8px}
