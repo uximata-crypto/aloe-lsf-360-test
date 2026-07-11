@@ -50,15 +50,9 @@
 .window-gap{stroke:#2a8ac4;stroke-width:2.4;fill:none;vector-effect:non-scaling-stroke}
 .window-mark{stroke:#166d9d;stroke-width:1.8;fill:none;vector-effect:non-scaling-stroke}
 
-
-.wall-fill-black{
-  fill:#050505;
-  stroke:#050505;
-  stroke-width:1.2;
-  vector-effect:non-scaling-stroke;
-}
-.wall-fill-black.selected{
-  fill:#111;
-  stroke:#ff9f1a;
-  stroke-width:2.4;
-}
+:root{--wall-fill-opacity:.88}
+.plan-dark-lines{opacity:.95}
+.plan-contrast{mix-blend-mode:multiply}
+.plan-white-wash{fill:#fff;opacity:.14;pointer-events:none}
+.wall-fill-black{fill:#050505;fill-opacity:var(--wall-fill-opacity,.88);stroke:#050505;stroke-width:1.15;vector-effect:non-scaling-stroke}
+.wall-fill-black.selected{fill:#111;fill-opacity:.95;stroke:#ff9f1a;stroke-width:2.4}

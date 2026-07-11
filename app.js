@@ -2,11 +2,18 @@
 'use strict';
 const svg=document.getElementById('board'), $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], NS='http://www.w3.org/2000/svg';
 const SCALE=70, ORIGIN={x:600,y:430};
-const S={tool:'select',mode:'2d',tab:'entity',shapes:[],profiles:[],selected:[],draft:null,polygon:[],next:1,multi:false,layers:{image:true,architecture:true,lsf:true,labels:true,terrain:true},cam:{yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0},drag:null,view2d:{panX:0,panY:0},image:null,calibration:null,calc:{spacing:0.60,studProfile:'C90x40x0.95',trackProfile:'U90x40x0.95',height:2.70,wind:0.50,dead:0.40,live:0.75,steel:'S280GD Z275',externalWall:0.150,internalWall:0.100,includeFloor:false,floorSpacing:0.60,floorProfileHeight:0.20,floorJoistProfile:'C200x50x1.50',floorTrackProfile:'U200x50x1.50',includeStairOpening:false,stairOpenWidth:1.00,stairOpenLength:3.00,stairOffsetX:0,stairOffsetY:0,includeFloorOSB:false,osbThickness:0.018,includeRoofSupport:false,roofProfileHeight:0.15,roofRise:1.20,roofRafterSpacing:0.60,roofBattenSpacing:0.35,roofType:'2aguas',roofSlopeMode:'graus',roofSlopeValue:25,roofOverhang:0.30,includeRoofOpening:false,roofOpeningType:'claraboia',roofOpenWidth:0.80,roofOpenLength:1.20,roofOpenOffsetX:0,roofOpenOffsetY:0,profileDims:{C:{web:90,flange:40,lip:12,thickness:0.95,kgm:1.35},U:{web:90,flange:40,lip:0,thickness:0.95,kgm:1.15}},results:null,signed:{engineer:'Joaquim Diniz',title:'Engenheiro Civil',orderNo:'',insurance:'',verificationCode:'',client:'Jorge Simões',workLocation:'Granja do Ulmeiro',process:'PJD012',date:'Jun.2026',projectName:'Bungalow T2 em LSF',scale:'1/100',length:10.00,width:7.00,wallHeight:2.36,roofRise:1.25,totalHeight:3.61,roofType:'Cobertura de duas águas',structuralSystem:'LSF — Light Steel Framing',steel:'S280GD/S350GD galvanizado, a confirmar por ficha técnica',notes:'Dossier técnico para validação e assinatura do engenheiro responsável.'}}};
+const S={tool:'select',mode:'2d',tab:'entity',shapes:[],profiles:[],selected:[],draft:null,polygon:[],next:1,multi:false,layers:{image:true,architecture:true,lsf:true,labels:true,terrain:true},importView:{darkLines:true,contrast:true,wallFill:true,fillOpacity:0.88},cam:{yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0},drag:null,view2d:{panX:0,panY:0},image:null,calibration:null,calc:{spacing:0.60,studProfile:'C90x40x0.95',trackProfile:'U90x40x0.95',height:2.70,wind:0.50,dead:0.40,live:0.75,steel:'S280GD Z275',externalWall:0.150,internalWall:0.100,profileDims:{C:{web:90,flange:40,lip:12,thickness:0.95,kgm:1.35},U:{web:90,flange:40,lip:0,thickness:0.95,kgm:1.15}},results:null,signed:{engineer:'Joaquim Diniz',title:'Engenheiro Civil',orderNo:'',insurance:'',verificationCode:'',client:'Jorge Simões',workLocation:'Granja do Ulmeiro',process:'PJD012',date:'Jun.2026',projectName:'Bungalow T2 em LSF',scale:'1/100',length:10.00,width:7.00,wallHeight:2.36,roofRise:1.25,totalHeight:3.61,roofType:'Cobertura de duas águas',structuralSystem:'LSF — Light Steel Framing',steel:'S280GD/S350GD galvanizado, a confirmar por ficha técnica',notes:'Dossier técnico para validação e assinatura do engenheiro responsável.'}}};
 function uid(p='O'){return p+(S.next++).toString().padStart(3,'0')}
 function n(v,d=2){return Number(v||0).toFixed(d)}
 function el(t,a={}){const e=document.createElementNS(NS,t);Object.entries(a).forEach(([k,v])=>e.setAttribute(k,v));return e}
-function clear(){while(svg.firstChild)svg.removeChild(svg.firstChild)}
+function clear(){
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  const defs=el('defs',{});
+  const filter=el('filter',{id:'plan-dark-filter'});
+  filter.append(el('feColorMatrix',{type:'matrix',values:'0.25 0.25 0.25 0 0  0.25 0.25 0.25 0 0  0.25 0.25 0.25 0 0  0 0 0 1 0'}));
+  defs.append(filter);
+  svg.append(defs);
+}
 function msg(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2400)}
 function item(id){return S.shapes.find(x=>x.id===id)||S.profiles.find(x=>x.id===id)}
 function items(){return [...S.shapes,...S.profiles]}
@@ -112,16 +119,13 @@ function offsetSegmentWorld(a,b,off){
 function drawWallLine2D(s,sel){
   const cls=wallStrokeClass(s,sel);
   const th=Number(s.thickness)||wallThickness(s.wallType||'interior');
-
-  // Auto desenho: preencher paredes detetadas a preto quando há espessura real.
-  if(!isOpening(s) && s.autoDetected && th>0.03){
+  if(!isOpening(s) && S.importView?.wallFill && (s.autoDetected||s.imported) && th>0.03){
     const seg1=offsetSegmentWorld(s.a,s.b,th/2), seg2=offsetSegmentWorld(s.a,s.b,-th/2);
     const pts=[world2D(seg1.a),world2D(seg1.b),world2D(seg2.b),world2D(seg2.a)];
     addPoly(pts, sel?'wall-fill-black selected':'wall-fill-black', s.id);
     addLine(world2D(s.a),world2D(s.b), sel?'wall-center selected':'wall-center', s.id);
     return;
   }
-
   if(!isOpening(s) && s.doubleLine && th>0.03){
     const seg1=offsetSegmentWorld(s.a,s.b,th/2), seg2=offsetSegmentWorld(s.a,s.b,-th/2);
     addLine(world2D(seg1.a),world2D(seg1.b),cls,s.id);
@@ -190,7 +194,20 @@ function openingsOnWallSegment(a,b,wallType=null){
 
 function grid2D(){for(let x=0;x<=1200;x+=44)svg.append(el('line',{x1:x,y1:0,x2:x,y2:760,class:'grid-line'}));for(let y=0;y<=760;y+=44)svg.append(el('line',{x1:0,y1:y,x2:1200,y2:y,class:'grid-line'}));svg.append(el('line',{x1:ORIGIN.x,y1:0,x2:ORIGIN.x,y2:760,class:'axis-x'}));svg.append(el('line',{x1:0,y1:ORIGIN.y,x2:1200,y2:ORIGIN.y,class:'axis-y'}))}
 function grid3D(){if(!S.layers.terrain)return;svg.append(el('rect',{x:0,y:0,width:1200,height:385,fill:'#bce4f1'}));svg.append(el('rect',{x:0,y:385,width:1200,height:375,fill:'#bfd9ad'}));for(let i=-10;i<=10;i++){addLine(project({x:-10,y:i,z:0}),project({x:10,y:i,z:0}),'grid-line','');addLine(project({x:i,y:-10,z:0}),project({x:i,y:10,z:0}),'grid-line','')}addLine(project({x:-6,y:0,z:0}),project({x:6,y:0,z:0}),'axis-x','');addLine(project({x:0,y:-6,z:0}),project({x:0,y:6,z:0}),'axis-y','');addLine(project({x:0,y:0,z:0}),project({x:0,y:0,z:4}),'axis-z','')}
-function renderImage(){if(!S.image||!S.layers.image||S.mode!=='2d')return;const x=ORIGIN.x+S.view2d.panX+S.image.x*SCALE,y=ORIGIN.y+S.view2d.panY-S.image.y*SCALE,w=S.image.w*S.image.scale,h=S.image.h*S.image.scale;svg.append(el('image',{href:S.image.src,x,y,width:w,height:h,class:'imported-image'}));if(S.calibration?.points?.length){const pts=S.calibration.points.map(world2D);if(pts.length===2)addLine(pts[0],pts[1],'calib-line','');pts.forEach(p=>svg.append(el('circle',{cx:p.x,cy:p.y,r:7,class:'calib-point'})))}}
+function renderImage(){
+  if(!S.image||!S.layers.image||S.mode!=='2d')return;
+  const x=ORIGIN.x+S.view2d.panX+S.image.x*SCALE,y=ORIGIN.y+S.view2d.panY-S.image.y*SCALE,w=S.image.w*S.image.scale,h=S.image.h*S.image.scale;
+  const cls='imported-image '+(S.importView?.darkLines?'plan-dark-lines':'')+' '+(S.importView?.contrast?'plan-contrast':'');
+  const attrs={href:S.image.src,x,y,width:w,height:h,class:cls.trim()};
+  if(S.importView?.darkLines) attrs.filter='url(#plan-dark-filter)';
+  svg.append(el('image',attrs));
+  if(S.importView?.contrast) svg.append(el('rect',{x,y,width:w,height:h,class:'plan-white-wash'}));
+  if(S.calibration?.points?.length){
+    const pts=S.calibration.points.map(world2D);
+    if(pts.length===2)addLine(pts[0],pts[1],'calib-line','');
+    pts.forEach(p=>svg.append(el('circle',{cx:p.x,cy:p.y,r:7,class:'calib-point'})))
+  }
+}
 
 function drawShape2D(s,preview=false){
   const sel=S.selected.includes(s.id),cls=preview?'shape-preview':('shape-base'+(sel?' selected':''));
@@ -822,282 +839,6 @@ function applyWallMeasuresToSelection(data){
   render();panel();msg('Medidas personalizadas aplicadas à seleção.')
 }
 
-
-function floorProfileRefsFromHeight(h){
-  const v=Number(h)||0.20;
-  const mm=Math.round(v*1000);
-  const flange=mm>=200?50:40;
-  const thick=mm>=400?2.5:(mm>=300?2.0:(mm>=200?1.5:(mm>=100?1.2:1.0)));
-  const joist=`C${mm}x${flange}x${thick.toFixed(2)}`;
-  const track=`U${mm}x${flange}x${thick.toFixed(2)}`;
-  return {joist,track,mm,flange,thick};
-}
-function syncFloorProfilesFromHeight(){
-  const h=Number(S.calc.floorProfileHeight)||0.20;
-  const refs=floorProfileRefsFromHeight(h);
-  S.calc.floorJoistProfile=refs.joist;
-  S.calc.floorTrackProfile=refs.track;
-  return refs;
-}
-
-function polyBBox(pts){return {minX:Math.min(...pts.map(p=>p.x)),maxX:Math.max(...pts.map(p=>p.x)),minY:Math.min(...pts.map(p=>p.y)),maxY:Math.max(...pts.map(p=>p.y))}}
-function scanVerticalSegments(pts,x){
-  const ys=[];
-  for(let i=0;i<pts.length;i++){
-    const a=pts[i], b=pts[(i+1)%pts.length];
-    if((a.x<=x&&b.x>x)||(b.x<=x&&a.x>x)){
-      const t=(x-a.x)/((b.x-a.x)||1e-9); ys.push(a.y+t*(b.y-a.y));
-    }
-  }
-  ys.sort((a,b)=>a-b);
-  const segs=[]; for(let i=0;i<ys.length-1;i+=2) if(ys[i+1]-ys[i]>0.05) segs.push([{x,y:ys[i],z:0},{x,y:ys[i+1],z:0}]);
-  return segs;
-}
-function scanHorizontalSegments(pts,y){
-  const xs=[];
-  for(let i=0;i<pts.length;i++){
-    const a=pts[i], b=pts[(i+1)%pts.length];
-    if((a.y<=y&&b.y>y)||(b.y<=y&&a.y>y)){
-      const t=(y-a.y)/((b.y-a.y)||1e-9); xs.push(a.x+t*(b.x-a.x));
-    }
-  }
-  xs.sort((a,b)=>a-b);
-  const segs=[]; for(let i=0;i<xs.length-1;i+=2) if(xs[i+1]-xs[i]>0.05) segs.push([{x:xs[i],y,z:0},{x:xs[i+1],y,z:0}]);
-  return segs;
-}
-function openingRectFromBBox(bb){
-  if(!S.calc.includeStairOpening) return null;
-  const w=Math.max(0.60, Number(S.calc.stairOpenWidth)||1.00);
-  const l=Math.max(1.00, Number(S.calc.stairOpenLength)||3.00);
-  let cx=(bb.minX+bb.maxX)/2 + (Number(S.calc.stairOffsetX)||0);
-  let cy=(bb.minY+bb.maxY)/2 + (Number(S.calc.stairOffsetY)||0);
-  const pad=0.10;
-  cx=Math.max(bb.minX+pad+w/2, Math.min(bb.maxX-pad-w/2, cx));
-  cy=Math.max(bb.minY+pad+l/2, Math.min(bb.maxY-pad-l/2, cy));
-  return {minX:cx-w/2,maxX:cx+w/2,minY:cy-l/2,maxY:cy+l/2,width:w,length:l,cx,cy};
-}
-function subtractRectFromVertical(x,y1,y2,r){
-  if(!r || x<=r.minX || x>=r.maxX || y2<=r.minY || y1>=r.maxY) return [[y1,y2]];
-  const out=[];
-  if(y1<r.minY) out.push([y1, Math.min(y2,r.minY)]);
-  if(y2>r.maxY) out.push([Math.max(y1,r.maxY), y2]);
-  return out.filter(seg=>seg[1]-seg[0]>0.05);
-}
-function subtractRectFromHorizontal(y,x1,x2,r){
-  if(!r || y<=r.minY || y>=r.maxY || x2<=r.minX || x1>=r.maxX) return [[x1,x2]];
-  const out=[];
-  if(x1<r.minX) out.push([x1, Math.min(x2,r.minX)]);
-  if(x2>r.maxX) out.push([Math.max(x1,r.maxX), x2]);
-  return out.filter(seg=>seg[1]-seg[0]>0.05);
-}
-function osbProfileDims(){const t=(Number(S.calc.osbThickness)||0.018)*1000; return {family:'C',web:t,flange:600,lip:0,thickness:t,kgm:0.01};}
-function roofSupportRefsFromHeight(h){const v=Number(h)||0.15; const mm=Math.round(v*1000); const flange=mm>=150?50:40; const thick=mm>=200?1.5:(mm>=150?1.2:1.0); return {main:`C${mm}x${flange}x${thick.toFixed(2)}`, guide:`U${mm}x${flange}x${thick.toFixed(2)}`, mm, flange, thick};}
-function generateFloorFromPoints(pts,panel,kStart,label='Chão/Laje'){
-  let k=kStart; const out=[];
-  syncFloorProfilesFromHeight();
-  const joistProfile=S.calc.floorJoistProfile||'C200x50x1.50';
-  const trackProfile=S.calc.floorTrackProfile||'U200x50x1.50';
-  const joistDims=defaultProfileDims(joistProfile), trackDims=defaultProfileDims(trackProfile);
-  const bb=polyBBox(pts), w=bb.maxX-bb.minX, h=bb.maxY-bb.minY, spacing=Math.max(0.20,Number(S.calc.floorSpacing)||0.60);
-  const zTop=Number(S.calc.floorProfileHeight)||0.20;
-  const stairRect=openingRectFromBBox(bb);
-  const add=(type,a,b,profile,dims,extra={})=>out.push({id:uid('F'),kind:'profile',type,profile,name:panel+'-'+(type.startsWith('Viga')?'V':type.startsWith('OSB')?'O':type.startsWith('Guia abertura')?'A':'U')+(k++),panel,wallType:'floor',thickness:(extra.thickness??(joistDims.web/1000)),profileDims:dims,a,b,floorElement:true,floorLabel:label,...extra});
-  // perímetro
-  for(let i=0;i<pts.length;i++) add('Guia piso', {...pts[i],z:0}, {...pts[(i+1)%pts.length],z:0}, trackProfile, trackDims);
-  if(stairRect){
-    const r=stairRect;
-    const corners=[{x:r.minX,y:r.minY,z:0},{x:r.maxX,y:r.minY,z:0},{x:r.maxX,y:r.maxY,z:0},{x:r.minX,y:r.maxY,z:0}];
-    for(let i=0;i<4;i++) add('Guia abertura escada', corners[i], corners[(i+1)%4], trackProfile, trackDims, {openingEdge:true});
-  }
-  const vertical = w>=h; // vigas paralelas ao menor vão
-  if(vertical){
-    for(let x=bb.minX+spacing; x<bb.maxX-0.001; x+=spacing){
-      scanVerticalSegments(pts,x).forEach(seg=>{ subtractRectFromVertical(x, seg[0].y, seg[1].y, stairRect).forEach(rr=>{ const a={x,y:rr[0],z:0}, b={x,y:rr[1],z:0}; if(lineLength({a,b})>0.20) add('Viga piso',a,b,joistProfile,joistDims) }) })
-    }
-    if(S.calc.includeFloorOSB){
-      const osbDims=osbProfileDims(), step=1.20;
-      for(let y=bb.minY+step/2; y<bb.maxY; y+=step){
-        const segs=scanHorizontalSegments(pts,y); segs.forEach(seg=>{ subtractRectFromHorizontal(y,seg[0].x,seg[1].x,stairRect).forEach(rr=>{ const a={x:rr[0],y,z:zTop}, b={x:rr[1],y,z:zTop}; if(lineLength({a,b})>0.20) add('OSB piso',a,b,'OSB'+Math.round((Number(S.calc.osbThickness)||0.018)*1000)+'mm',osbDims,{thickness:Number(S.calc.osbThickness)||0.018,osb:true}) }) })
-      }
-    }
-  }else{
-    for(let y=bb.minY+spacing; y<bb.maxY-0.001; y+=spacing){
-      scanHorizontalSegments(pts,y).forEach(seg=>{ subtractRectFromHorizontal(y, seg[0].x, seg[1].x, stairRect).forEach(rr=>{ const a={x:rr[0],y,z:0}, b={x:rr[1],y,z:0}; if(lineLength({a,b})>0.20) add('Viga piso',a,b,joistProfile,joistDims) }) })
-    }
-    if(S.calc.includeFloorOSB){
-      const osbDims=osbProfileDims(), step=1.20;
-      for(let x=bb.minX+step/2; x<bb.maxX; x+=step){
-        const segs=scanVerticalSegments(pts,x); segs.forEach(seg=>{ subtractRectFromVertical(x,seg[0].y,seg[1].y,stairRect).forEach(rr=>{ const a={x,y:rr[0],z:zTop}, b={x,y:rr[1],z:zTop}; if(lineLength({a,b})>0.20) add('OSB piso',a,b,'OSB'+Math.round((Number(S.calc.osbThickness)||0.018)*1000)+'mm',osbDims,{thickness:Number(S.calc.osbThickness)||0.018,osb:true}) }) })
-      }
-    }
-  }
-  return {profiles:out,next:k,opening:stairRect};
-}
-function roofOpeningRectFromBBox(bb){
-  if(!S.calc.includeRoofOpening) return null;
-  const w=Math.max(0.40, Number(S.calc.roofOpenWidth)||0.80);
-  const l=Math.max(0.40, Number(S.calc.roofOpenLength)||1.20);
-  let cx=(bb.minX+bb.maxX)/2 + (Number(S.calc.roofOpenOffsetX)||0);
-  let cy=(bb.minY+bb.maxY)/2 + (Number(S.calc.roofOpenOffsetY)||0);
-  const pad=0.10;
-  cx=Math.max(bb.minX+pad+w/2, Math.min(bb.maxX-pad-w/2, cx));
-  cy=Math.max(bb.minY+pad+l/2, Math.min(bb.maxY-pad-l/2, cy));
-  return {minX:cx-w/2,maxX:cx+w/2,minY:cy-l/2,maxY:cy+l/2,width:w,length:l,cx,cy};
-}
-
-function roofBaseBBox(bb){
-  const o=Math.max(0, Number(S.calc.roofOverhang)||0);
-  return {minX:bb.minX-o,maxX:bb.maxX+o,minY:bb.minY-o,maxY:bb.maxY+o};
-}
-function roofSpanForType(bb){
-  const w=bb.maxX-bb.minX, h=bb.maxY-bb.minY, t=S.calc.roofType||'2aguas';
-  return t==='1agua' ? Math.min(w,h) : Math.min(w,h);
-}
-function roofComputedRise(bb){
-  const t=S.calc.roofType||'2aguas';
-  const span=roofSpanForType(bb);
-  const mode=S.calc.roofSlopeMode||'graus';
-  const val=Number(S.calc.roofSlopeValue)||25;
-  const ref=(t==='1agua')?span:span/2;
-  if(mode==='percent') return Math.max(0.10, ref*(val/100));
-  if(mode==='graus') return Math.max(0.10, Math.tan((val||25)*Math.PI/180)*ref);
-  return Math.max(0.10, Number(S.calc.roofRise)||1.20);
-}
-function roofAreaFromBBox(bb){
-  const rb=roofBaseBBox(bb), w=rb.maxX-rb.minX, h=rb.maxY-rb.minY, t=S.calc.roofType||'2aguas';
-  const span=Math.min(w,h), len=Math.max(w,h), rise=roofComputedRise(rb);
-  let area=0;
-  if(t==='1agua') area=len*Math.sqrt(span*span+rise*rise);
-  else if(t==='4aguas'){
-    const factor=Math.sqrt((span/2)*(span/2)+rise*rise)/Math.max(0.001,(span/2));
-    area=(w*h)*factor;
-  } else {
-    const factor=Math.sqrt((span/2)*(span/2)+rise*rise)/Math.max(0.001,(span/2));
-    area=(w*h)*factor;
-  }
-  if(S.calc.includeRoofOpening) area=Math.max(0, area-((Number(S.calc.roofOpenWidth)||0.8)*(Number(S.calc.roofOpenLength)||1.2)));
-  return area;
-}
-
-function generateRoofSupportFromPoints(pts,panel,kStart,baseZ,label='Apoio de telhado'){
-  if(!S.calc.includeRoofSupport) return {profiles:[], next:kStart, opening:null};
-  let k=kStart; const out=[];
-  const refs=roofSupportRefsFromHeight(S.calc.roofProfileHeight), mainDims=defaultProfileDims(refs.main), guideDims=defaultProfileDims(refs.guide);
-  const base=polyBBox(pts), bb=roofBaseBBox(base), w=bb.maxX-bb.minX, h=bb.maxY-bb.minY;
-  const z0=Number(baseZ)||Number(S.calc.height)||2.70, rise=roofComputedRise(base), sp=Math.max(0.30, Number(S.calc.roofRafterSpacing)||0.60), bat=Math.max(0.20, Number(S.calc.roofBattenSpacing)||0.35), roofType=S.calc.roofType||'2aguas';
-  const roofRect=roofOpeningRectFromBBox(bb);
-  const add=(type,a,b,profile,dims,extra={})=>out.push({id:uid('R'),kind:'profile',type,profile,name:panel+'-'+(type.startsWith('Caibro')?'C':type.startsWith('Ripa')?'R':type.startsWith('Contrarripa')?'T':type.startsWith('Abertura')?'A':'U')+(k++),panel,wallType:'roof',thickness:(extra.thickness??(mainDims.web/1000)),profileDims:dims,a,b,roofElement:true,roofLabel:label,...extra});
-  function roofZAt(x,y){
-    if(roofType==='1agua'){
-      if(w>=h){ const t=(y-bb.minY)/Math.max(0.001,h); return z0 + rise*Math.max(0,Math.min(1,t)); }
-      const t=(x-bb.minX)/Math.max(0.001,w); return z0 + rise*Math.max(0,Math.min(1,t));
-    }
-    if(roofType==='4aguas'){
-      const cx=(bb.minX+bb.maxX)/2, cy=(bb.minY+bb.maxY)/2, hw=Math.max(0.001,w/2), hh=Math.max(0.001,h/2);
-      const f=1-Math.max(Math.abs(x-cx)/hw, Math.abs(y-cy)/hh);
-      return z0 + rise*Math.max(0,f);
-    }
-    if(w>=h){ const cy=(bb.minY+bb.maxY)/2; const half=(h/2)||0.001; return z0 + rise*(1-Math.min(1,Math.abs(y-cy)/half)); }
-    const cx=(bb.minX+bb.maxX)/2; const half=(w/2)||0.001; return z0 + rise*(1-Math.min(1,Math.abs(x-cx)/half));
-  }
-  function addRectOpeningGuides(r){
-    if(!r) return;
-    const zA=roofZAt(r.minX,r.minY), zB=roofZAt(r.maxX,r.minY), zC=roofZAt(r.maxX,r.maxY), zD=roofZAt(r.minX,r.maxY);
-    const t = S.calc.roofOpeningType==='chamine' ? 'Abertura chaminé' : 'Abertura claraboia';
-    add(t,{x:r.minX,y:r.minY,z:zA},{x:r.maxX,y:r.minY,z:zB},refs.guide,guideDims,{roofOpening:true});
-    add(t,{x:r.maxX,y:r.minY,z:zB},{x:r.maxX,y:r.maxY,z:zC},refs.guide,guideDims,{roofOpening:true});
-    add(t,{x:r.maxX,y:r.maxY,z:zC},{x:r.minX,y:r.maxY,z:zD},refs.guide,guideDims,{roofOpening:true});
-    add(t,{x:r.minX,y:r.maxY,z:zD},{x:r.minX,y:r.minY,z:zA},refs.guide,guideDims,{roofOpening:true});
-  }
-  const corners=[{x:bb.minX,y:bb.minY,z:z0},{x:bb.maxX,y:bb.minY,z:z0},{x:bb.maxX,y:bb.maxY,z:z0},{x:bb.minX,y:bb.maxY,z:z0}];
-  for(let i=0;i<corners.length;i++) add('Guia cobertura', corners[i], corners[(i+1)%corners.length], refs.guide, guideDims, {thickness:(guideDims.web/1000)});
-  if(roofType==='1agua'){
-    if(w>=h){
-      add('Guia cumeeira',{x:bb.minX,y:bb.maxY,z:z0+rise},{x:bb.maxX,y:bb.maxY,z:z0+rise},refs.guide,guideDims,{thickness:(guideDims.web/1000)});
-      for(let x=bb.minX; x<=bb.maxX+0.001; x+=sp){
-        subtractRectFromVertical(x,bb.minY,bb.maxY,roofRect).forEach(rr=>{const a={x,y:rr[0],z:roofZAt(x,rr[0])},b={x,y:rr[1],z:roofZAt(x,rr[1])}; if(lineLength({a,b})>0.15){add('Caibro telhado',a,b,refs.main,mainDims); add('Contrarripa',a,b,'C50x30x1.00',{family:'C',web:50,flange:30,lip:8,thickness:1.00,kgm:0.45},{thickness:0.05});}});
-      }
-      for(let y=bb.minY+bat; y<bb.maxY; y+=bat){
-        subtractRectFromHorizontal(y,bb.minX,bb.maxX,roofRect).forEach(rr=>{const a={x:rr[0],y,z:roofZAt(rr[0],y)},b={x:rr[1],y,z:roofZAt(rr[1],y)}; if(lineLength({a,b})>0.15) add('Ripa telhado',a,b,'C30x20x0.80',{family:'C',web:30,flange:20,lip:6,thickness:0.80,kgm:0.20},{thickness:0.03});});
-      }
-    }else{
-      add('Guia cumeeira',{x:bb.maxX,y:bb.minY,z:z0+rise},{x:bb.maxX,y:bb.maxY,z:z0+rise},refs.guide,guideDims,{thickness:(guideDims.web/1000)});
-      for(let y=bb.minY; y<=bb.maxY+0.001; y+=sp){
-        subtractRectFromHorizontal(y,bb.minX,bb.maxX,roofRect).forEach(rr=>{const a={x:rr[0],y,z:roofZAt(rr[0],y)},b={x:rr[1],y,z:roofZAt(rr[1],y)}; if(lineLength({a,b})>0.15){add('Caibro telhado',a,b,refs.main,mainDims); add('Contrarripa',a,b,'C50x30x1.00',{family:'C',web:50,flange:30,lip:8,thickness:1.00,kgm:0.45},{thickness:0.05});}});
-      }
-      for(let x=bb.minX+bat; x<bb.maxX; x+=bat){
-        subtractRectFromVertical(x,bb.minY,bb.maxY,roofRect).forEach(rr=>{const a={x,y:rr[0],z:roofZAt(x,rr[0])},b={x,y:rr[1],z:roofZAt(x,rr[1])}; if(lineLength({a,b})>0.15) add('Ripa telhado',a,b,'C30x20x0.80',{family:'C',web:30,flange:20,lip:6,thickness:0.80,kgm:0.20},{thickness:0.03});});
-      }
-    }
-  }else if(roofType==='4aguas'){
-    const cx=(bb.minX+bb.maxX)/2, cy=(bb.minY+bb.maxY)/2, center={x:cx,y:cy,z:z0+rise};
-    corners.forEach(c=>add('Guia cumeeira',c,center,refs.guide,guideDims,{thickness:(guideDims.web/1000)}));
-    for(let x=bb.minX; x<=bb.maxX+0.001; x+=sp){
-      subtractRectFromVertical(x,bb.minY,bb.maxY,roofRect).forEach(rr=>{const a={x,y:rr[0],z:roofZAt(x,rr[0])},b={x,y:rr[1],z:roofZAt(x,rr[1])}; if(lineLength({a,b})>0.15){add('Caibro telhado',a,b,refs.main,mainDims); add('Contrarripa',a,b,'C50x30x1.00',{family:'C',web:50,flange:30,lip:8,thickness:1.00,kgm:0.45},{thickness:0.05});}});
-    }
-    for(let y=bb.minY+bat; y<bb.maxY; y+=bat){
-      subtractRectFromHorizontal(y,bb.minX,bb.maxX,roofRect).forEach(rr=>{const a={x:rr[0],y,z:roofZAt(rr[0],y)},b={x:rr[1],y,z:roofZAt(rr[1],y)}; if(lineLength({a,b})>0.15) add('Ripa telhado',a,b,'C30x20x0.80',{family:'C',web:30,flange:20,lip:6,thickness:0.80,kgm:0.20},{thickness:0.03});});
-    }
-  }else{
-    if(w>=h){
-      const cy=(bb.minY+bb.maxY)/2, ridgeA={x:bb.minX,y:cy,z:z0+rise}, ridgeB={x:bb.maxX,y:cy,z:z0+rise};
-      add('Guia cumeeira', ridgeA, ridgeB, refs.guide, guideDims, {thickness:(guideDims.web/1000)});
-      for(let x=bb.minX; x<=bb.maxX+0.001; x+=sp){
-        const segs1=subtractRectFromVertical(x, bb.minY, cy, roofRect), segs2=subtractRectFromVertical(x, cy, bb.maxY, roofRect);
-        segs1.forEach(rr=>{ const a={x,y:rr[0],z:roofZAt(x,rr[0])}, b={x,y:rr[1],z:roofZAt(x,rr[1])}; if(lineLength({a,b})>0.15){ add('Caibro telhado',a,b,refs.main,mainDims); add('Contrarripa',a,b,'C50x30x1.00',{family:'C',web:50,flange:30,lip:8,thickness:1.00,kgm:0.45},{thickness:0.05}); } });
-        segs2.forEach(rr=>{ const a={x,y:rr[0],z:roofZAt(x,rr[0])}, b={x,y:rr[1],z:roofZAt(x,rr[1])}; if(lineLength({a,b})>0.15){ add('Caibro telhado',a,b,refs.main,mainDims); add('Contrarripa',a,b,'C50x30x1.00',{family:'C',web:50,flange:30,lip:8,thickness:1.00,kgm:0.45},{thickness:0.05}); } });
-      }
-      const half=(cy-bb.minY)||0.01;
-      for(let d=bat; d<half; d+=bat){
-        const y1=bb.minY+d, y2=bb.maxY-d;
-        subtractRectFromHorizontal(y1,bb.minX,bb.maxX,roofRect).forEach(rr=>{ const a={x:rr[0],y:y1,z:roofZAt(rr[0],y1)}, b={x:rr[1],y:y1,z:roofZAt(rr[1],y1)}; if(lineLength({a,b})>0.15) add('Ripa telhado',a,b,'C30x20x0.80',{family:'C',web:30,flange:20,lip:6,thickness:0.80,kgm:0.20},{thickness:0.03}); });
-        subtractRectFromHorizontal(y2,bb.minX,bb.maxX,roofRect).forEach(rr=>{ const a={x:rr[0],y:y2,z:roofZAt(rr[0],y2)}, b={x:rr[1],y:y2,z:roofZAt(rr[1],y2)}; if(lineLength({a,b})>0.15) add('Ripa telhado',a,b,'C30x20x0.80',{family:'C',web:30,flange:20,lip:6,thickness:0.80,kgm:0.20},{thickness:0.03}); });
-      }
-    }else{
-      const cx=(bb.minX+bb.maxX)/2, ridgeA={x:cx,y:bb.minY,z:z0+rise}, ridgeB={x:cx,y:bb.maxY,z:z0+rise};
-      add('Guia cumeeira', ridgeA, ridgeB, refs.guide, guideDims, {thickness:(guideDims.web/1000)});
-      for(let y=bb.minY; y<=bb.maxY+0.001; y+=sp){
-        const segs1=subtractRectFromHorizontal(y, bb.minX, cx, roofRect), segs2=subtractRectFromHorizontal(y, cx, bb.maxX, roofRect);
-        segs1.forEach(rr=>{ const a={x:rr[0],y,z:roofZAt(rr[0],y)}, b={x:rr[1],y,z:roofZAt(rr[1],y)}; if(lineLength({a,b})>0.15){ add('Caibro telhado',a,b,refs.main,mainDims); add('Contrarripa',a,b,'C50x30x1.00',{family:'C',web:50,flange:30,lip:8,thickness:1.00,kgm:0.45},{thickness:0.05}); } });
-        segs2.forEach(rr=>{ const a={x:rr[0],y,z:roofZAt(rr[0],y)}, b={x:rr[1],y,z:roofZAt(rr[1],y)}; if(lineLength({a,b})>0.15){ add('Caibro telhado',a,b,refs.main,mainDims); add('Contrarripa',a,b,'C50x30x1.00',{family:'C',web:50,flange:30,lip:8,thickness:1.00,kgm:0.45},{thickness:0.05}); } });
-      }
-      const half=(cx-bb.minX)||0.01;
-      for(let d=bat; d<half; d+=bat){
-        const x1=bb.minX+d, x2=bb.maxX-d;
-        subtractRectFromVertical(x1,bb.minY,bb.maxY,roofRect).forEach(rr=>{ const a={x:x1,y:rr[0],z:roofZAt(x1,rr[0])}, b={x:x1,y:rr[1],z:roofZAt(x1,rr[1])}; if(lineLength({a,b})>0.15) add('Ripa telhado',a,b,'C30x20x0.80',{family:'C',web:30,flange:20,lip:6,thickness:0.80,kgm:0.20},{thickness:0.03}); });
-        subtractRectFromVertical(x2,bb.minY,bb.maxY,roofRect).forEach(rr=>{ const a={x:x2,y:rr[0],z:roofZAt(x2,rr[0])}, b={x:x2,y:rr[1],z:roofZAt(x2,rr[1])}; if(lineLength({a,b})>0.15) add('Ripa telhado',a,b,'C30x20x0.80',{family:'C',web:30,flange:20,lip:6,thickness:0.80,kgm:0.20},{thickness:0.03}); });
-      }
-    }
-  }
-  addRectOpeningGuides(roofRect);
-  return {profiles:out, next:k, opening:roofRect};
-}
-function generateOptionalFloor(kStart,closedSet,lineSet){
-  if(!S.calc.includeFloor) return {profiles:[],next:kStart,count:0,opening:null};
-  let k=kStart, profiles=[], count=0, opening=null;
-  if(closedSet.length){
-    closedSet.forEach((s,i)=>{const r=generateFloorFromPoints(pointsOf(s),'F'+String(i+1).padStart(2,'0'),k,'Chão/Laje LSF'); profiles.push(...r.profiles); k=r.next; count++; if(!opening&&r.opening) opening=r.opening;});
-  }else if(lineSet.length){
-    const base=lineSet.filter(l=>(l.wallType||classifySegmentWall(l.a,l.b,-1))==='exterior');
-    const use=base.length?base:lineSet;
-    const pts=[]; use.forEach(l=>{pts.push(l.a,l.b)});
-    const bb=polyBBox(pts); const poly=[{x:bb.minX,y:bb.minY,z:0},{x:bb.maxX,y:bb.minY,z:0},{x:bb.maxX,y:bb.maxY,z:0},{x:bb.minX,y:bb.maxY,z:0}];
-    const r=generateFloorFromPoints(poly,'F01',k,'Chão/Laje LSF (bbox)'); profiles.push(...r.profiles); k=r.next; count=1; opening=r.opening;
-  }
-  return {profiles,next:k,count,opening};
-}
-function generateOptionalRoofSupport(kStart,closedSet,lineSet,baseZ){
-  if(!S.calc.includeRoofSupport) return {profiles:[],next:kStart,count:0,opening:null};
-  let k=kStart, profiles=[], count=0, opening=null;
-  if(closedSet.length){
-    closedSet.forEach((s,i)=>{const r=generateRoofSupportFromPoints(pointsOf(s),'T'+String(i+1).padStart(2,'0'),k,wallHeightOf(s),'Apoio de telhado'); profiles.push(...r.profiles); k=r.next; count++; if(!opening&&r.opening) opening=r.opening;});
-  }else if(lineSet.length){
-    const pts=[]; lineSet.forEach(l=>{pts.push(l.a,l.b)}); const bb=polyBBox(pts); const poly=[{x:bb.minX,y:bb.minY,z:0},{x:bb.maxX,y:bb.minY,z:0},{x:bb.maxX,y:bb.maxY,z:0},{x:bb.minX,y:bb.maxY,z:0}];
-    const r=generateRoofSupportFromPoints(poly,'T01',k,baseZ||Number(S.calc.height)||2.70,'Apoio de telhado (bbox)'); profiles.push(...r.profiles); k=r.next; count=1; opening=r.opening;
-  }
-  return {profiles,next:k,count,opening};
-}
-
 function classifySegmentWall(a,b,closedIndex=-1){
   // Regra simples:
   // - primeiro volume fechado = exterior;
@@ -1170,51 +911,21 @@ function generateLSF(){
     S.profiles.push(...r.profiles);k=r.next;generatedLines++;
   });
 
-  const floorGen=generateOptionalFloor(k,closed,lines);
-  S.profiles.push(...floorGen.profiles); k=floorGen.next;
-  const roofGen=generateOptionalRoofSupport(k,closed,lines,height);
-  S.profiles.push(...roofGen.profiles); k=roofGen.next;
-
-  if(!generatedClosed&&!generatedLines&&!floorGen.count&&!roofGen.count)return msg('Desenhe/importa paredes exteriores ou interiores para gerar LSF.');
+  if(!generatedClosed&&!generatedLines)return msg('Desenhe/importa paredes exteriores ou interiores para gerar LSF.');
   setMode('3d');panel();
-  msg(S.profiles.length+' perfis LSF gerados'+(floorGen.count?' com chão/laje LSF opcional':'')+(roofGen.count?' e estrutura de apoio de telhado':'')+' e vãos de portas/janelas aplicados nas paredes.');
+  msg(S.profiles.length+' perfis LSF gerados com vãos de portas/janelas aplicados nas paredes.');
 }
 function runCalc(){
-  syncFloorProfilesFromHeight();
   const panels=S.shapes.filter(isClosed);
   const lines=S.shapes.filter(o=>o.kind==='line'&&!o.openingType&&lineLength(o)>=0.20);
   let areaTotal=0, wallLength=0, externalLength=0, internalLength=0, studs=0, tracks=0, source='';
-  let floorJoists=0, floorGuides=0, floorLength=0, floorArea=0, stairOpenArea=0, osbLines=0, osbArea=0;
-  let roofRafters=0, roofBattens=0, roofCounter=0, roofGuides=0, roofArea=0, roofOpenArea=0;
-
-  panels.forEach(s=>{ areaTotal+=area(s); });
-  const ptsBase=(panels.length?panels.flatMap(pointsOf):lines.flatMap(l=>[l.a,l.b]));
-  let bbBase=null;
-  if(ptsBase.length) bbBase=polyBBox(ptsBase);
-  if(S.calc.includeFloor){
-    floorArea=areaTotal;
-    if(!floorArea && bbBase) floorArea=(bbBase.maxX-bbBase.minX)*(bbBase.maxY-bbBase.minY);
-    if(S.calc.includeStairOpening){ stairOpenArea=(Number(S.calc.stairOpenWidth)||1.0)*(Number(S.calc.stairOpenLength)||3.0); floorArea=Math.max(0,floorArea-stairOpenArea); }
-    if(S.calc.includeFloorOSB) osbArea=floorArea;
-  }
-  if(S.calc.includeRoofSupport && bbBase){
-    roofOpenArea=S.calc.includeRoofOpening?((Number(S.calc.roofOpenWidth)||0.8)*(Number(S.calc.roofOpenLength)||1.2)):0;
-    roofArea=roofAreaFromBBox(bbBase);
-  }
 
   if(S.profiles.length){
     S.profiles.forEach(p=>{
       if(p.type==='Montante')studs++;
-      if(p.type&&p.type.startsWith('Guia') && p.type!=='Guia piso' && p.type!=='Guia abertura escada' && p.type!=='Guia cobertura' && p.type!=='Guia cumeeira')tracks++;
-      if(p.type==='Viga piso'){floorJoists++; floorLength+=lineLength(p)}
-      if(p.type==='Guia piso' || p.type==='Guia abertura escada'){floorGuides++; floorLength+=lineLength(p)}
-      if(p.type==='OSB piso') osbLines++;
-      if(p.type==='Caibro telhado') roofRafters++;
-      if(p.type==='Ripa telhado') roofBattens++;
-      if(p.type==='Contrarripa') roofCounter++;
-      if(p.type==='Guia cobertura' || p.type==='Guia cumeeira') roofGuides++;
+      if(p.type&&p.type.startsWith('Guia'))tracks++;
     });
-    const guideProfiles=S.profiles.filter(p=>p.type&&p.type.startsWith('Guia')&& !['Guia piso','Guia abertura escada','Guia cobertura','Guia cumeeira'].includes(p.type));
+    const guideProfiles=S.profiles.filter(p=>p.type&&p.type.startsWith('Guia'));
     const totalGuide=guideProfiles.reduce((a,p)=>a+lineLength(p),0);
     wallLength=totalGuide/2;
     externalLength=guideProfiles.filter(p=>p.wallType==='exterior').reduce((a,p)=>a+lineLength(p),0)/2;
@@ -1222,42 +933,23 @@ function runCalc(){
     source='perfis LSF gerados';
   }else{
     panels.forEach((s,i)=>{
-      const per=perimeter(s); wallLength+=per; const wt=s.wallType||'exterior'; if(wt==='exterior')externalLength+=per; else internalLength+=per;
+      areaTotal+=area(s);
+      const per=perimeter(s);
+      wallLength+=per;
+      const wt=s.wallType||'exterior';
+      if(wt==='exterior')externalLength+=per;else internalLength+=per;
     });
-    lines.forEach(l=>{ const L=lineLength(l), wt=l.wallType||classifySegmentWall(l.a,l.b,-1); wallLength+=L; if(wt==='exterior')externalLength+=L; else internalLength+=L; });
+    lines.forEach(l=>{
+      const L=lineLength(l), wt=l.wallType||classifySegmentWall(l.a,l.b,-1);
+      wallLength+=L;
+      if(wt==='exterior')externalLength+=L;else internalLength+=L;
+    });
     source=panels.length&&lines.length?'contornos + paredes interiores':(panels.length?'volumes/painéis fechados':'linhas/DXF importadas');
-    if(S.calc.includeFloor && bbBase){
-      const w=bbBase.maxX-bbBase.minX, h=bbBase.maxY-bbBase.minY, spacingFloor=Number(S.calc.floorSpacing)||0.60;
-      const span=Math.min(w,h), lengthDir=Math.max(w,h);
-      floorJoists=Math.max(2,Math.floor(lengthDir/spacingFloor)+1);
-      floorGuides=S.calc.includeStairOpening?8:4;
-      floorLength=(floorJoists*span)+(2*span)+(2*lengthDir);
-      if(S.calc.includeFloorOSB) osbLines=Math.max(1,Math.ceil((w>=h?h:w)/1.2));
-    }
-    if(S.calc.includeRoofSupport && bbBase){
-      const rb=roofBaseBBox(bbBase), w=rb.maxX-rb.minX, h=rb.maxY-rb.minY;
-      const lengthDir=Math.max(w,h), span=Math.min(w,h), sp=Math.max(0.30,Number(S.calc.roofRafterSpacing)||0.60), bat=Math.max(0.20,Number(S.calc.roofBattenSpacing)||0.35), rt=S.calc.roofType||'2aguas';
-      if(rt==='1agua'){
-        roofRafters=Math.max(2, Math.floor(lengthDir/sp)+1);
-        roofCounter=roofRafters;
-        roofBattens=Math.max(2, Math.floor(span/bat)+1);
-        roofGuides=5;
-      }else if(rt==='4aguas'){
-        roofRafters=Math.max(2, Math.floor(lengthDir/sp)+1);
-        roofCounter=roofRafters;
-        roofBattens=Math.max(2, Math.floor(span/bat)+1);
-        roofGuides=8;
-      }else{
-        roofRafters=Math.max(2, Math.floor(lengthDir/sp)+1)*2;
-        roofCounter=roofRafters;
-        roofBattens=Math.max(2, Math.floor((span/2)/bat))*2;
-        roofGuides=5;
-      }
-    }
   }
 
   const spacing=Number(S.calc.spacing)||0.6, height=Number(S.calc.height)||2.7;
   const wind=Number(S.calc.wind)||0.5, load=(Number(S.calc.dead)||0)+(Number(S.calc.live)||0);
+
   if(!studs){
     const lineStuds=lines.reduce((a,l)=>a+Math.max(2,Math.floor(lineLength(l)/(typeof wallSpacingOf==='function'?wallSpacingOf(l):spacing))+1),0);
     const panelStuds=panels.reduce((a,p)=>a+Math.ceil(perimeter(p)/(typeof wallSpacingOf==='function'?wallSpacingOf(p):spacing)),0);
@@ -1266,45 +958,19 @@ function runCalc(){
   if(!tracks)tracks=wallLength>0?Math.max(2,Math.ceil(wallLength/3)*2):0;
   const linStud=studs*height;
   const linTrack=wallLength*2;
-  let mass=0;
-  if(S.profiles.length){
-    mass=S.profiles.reduce((a,p)=>a+lineLength(p)*(typeof profileDimsOf==='function'?(Number(profileDimsOf(p).kgm)||1.25):1.25),0);
-  }else{
-    const floorRefs=syncFloorProfilesFromHeight();
-    const floorKgm=defaultProfileDims(floorRefs.joist).kgm;
-    const roofRefs=roofSupportRefsFromHeight(S.calc.roofProfileHeight||0.15);
-    const roofKgm=defaultProfileDims(roofRefs.main).kgm;
-    mass=(linStud*1.35+linTrack*1.15)+(floorLength*floorKgm)+((roofRafters+roofCounter+roofBattens)*roofKgm);
-  }
-  if(S.calc.includeFloorOSB) mass += osbArea * (Number(S.calc.osbThickness)||0.018) * 650;
-
+  const mass=S.profiles.length?S.profiles.reduce((a,p)=>a+lineLength(p)*(typeof profileDimsOf==='function'?(Number(profileDimsOf(p).kgm)||1.25):1.25),0):(linStud*1.35+linTrack*1.15);
   const warn=[];
-  if(wallLength<=0 && !S.calc.includeFloor && !S.calc.includeRoofSupport) warn.push('Não existem paredes/linhas/volumes para calcular.');
+  if(wallLength<=0)warn.push('Não existem paredes/linhas/volumes para calcular.');
   if(internalLength<=0 && lines.length===0)warn.push('Não existem paredes interiores desenhadas/detetadas. Desenhe ou selecione linhas interiores.');
   if(spacing>0.6)warn.push('Espaçamento superior a 600 mm: rever estabilidade e placas.');
   if(height>3.0)warn.push('Altura superior a 3,00 m: verificar flambagem e reforços.');
   if(wind>0.75)warn.push('Pressão de vento elevada: exigir verificação estrutural detalhada.');
   if(!S.profiles.length && wallLength>0)warn.push('Pré-cálculo feito sem perfis gerados. Clique em Gerar LSF para criar peças individuais.');
-  if(S.calc.includeFloor && floorArea<=0)warn.push('Opção de chão/laje ativa, mas sem contorno suficiente para estimar a área do piso.');
 
-  S.calc.results={source,panels:panels.length,lines:lines.length,areaTotal,wallLength,externalLength,internalLength,externalWall:Number(S.calc.externalWall)||0.150,internalWall:Number(S.calc.internalWall)||0.100,studs,tracks,linStud,linTrack,mass,load,wind,warn,floorIncluded:!!S.calc.includeFloor,floorProfileHeight:Number(S.calc.floorProfileHeight)||0.20,floorJoists,floorGuides,floorLength,floorArea,stairOpenArea,osbIncluded:!!S.calc.includeFloorOSB,osbArea,osbLines,roofIncluded:!!S.calc.includeRoofSupport,roofProfileHeight:Number(S.calc.roofProfileHeight)||0.15,roofRafters,roofBattens,roofCounter,roofGuides,roofArea,roofOpenArea,roofOpeningIncluded:!!S.calc.includeRoofOpening,roofOpeningType:S.calc.roofOpeningType,roofType:S.calc.roofType,roofSlopeMode:S.calc.roofSlopeMode,roofSlopeValue:S.calc.roofSlopeValue,roofOverhang:Number(S.calc.roofOverhang)||0};
+  S.calc.results={source,panels:panels.length,lines:lines.length,areaTotal,wallLength,externalLength,internalLength,externalWall:Number(S.calc.externalWall)||0.150,internalWall:Number(S.calc.internalWall)||0.100,studs,tracks,linStud,linTrack,mass,load,wind,warn};
   S.tab='structure';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='structure'));panel();
-  msg((wallLength>0||floorLength>0||roofRafters>0)?'Pré-cálculo estrutural gerado com exteriores, interiores'+(S.calc.includeFloor?' e chão/laje':'')+(S.calc.includeRoofSupport?' e telhado':'')+'.':'Não há elementos para calcular.');
+  msg(wallLength>0?'Pré-cálculo estrutural gerado com exteriores e interiores.':'Não há elementos para calcular.');
 }
-function csvEncode(rows){return rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n')}
-function downloadCSVRows(rows,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csvEncode(rows)],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();}
-function exportSeparatedCSVs(){
-  if(!S.profiles.length && !S.calc.results) return msg('Sem dados para exportar.');
-  const header=[['PROJETO','PAINEL','REFERENCIA','TIPO','TIPO_PAREDE','LARGURA_PAREDE_MM','PERFIL','ALMA_MM','ABA_MM','LABIO_MM','ESPESSURA_MM','KG_M','COMPRIMENTO_MM','OBS']];
-  const mk=(arr,name)=>{ if(arr.length>1) downloadCSVRows(arr,name); };
-  const walls=[...header], floor=[...header], roof=[...header], openings=[['MAPA DE VÃOS','CODIGO_VAO','PAINEL','PAREDE_REF','REFERENCIA','TIPO','TIPO_PAREDE','LARGURA_MM','ALTURA_MM','PEITORIL_MM','CABEÇA_VÃO_MM','LADO_ABERTURA','ORIGEM']];
-  S.profiles.forEach(p=>{ const d=profileDimsOf(p); const row=['Aloe LSF 360',p.panel,p.name,p.type,p.wallType||'interior',((p.thickness||wallThickness(p.wallType))*1000).toFixed(0),p.profile,d.web,d.flange,d.lip,d.thickness,d.kgm,(lineLength(p)*1000).toFixed(1),'Perfil LSF individual selecionável']; if(p.wallType==='floor') floor.push(row); else if(p.wallType==='roof') roof.push(row); else walls.push(row); });
-  openingMapRows().forEach(r=>openings.push(r));
-  const precalc=[['PRE-CALCULO','CAMPO','UN','TIPO','DIM1','PERFIL','VALOR','OBS']];
-  if(S.calc.results){ const r=S.calc.results; precalc.push(['PAREDES','Comprimento total','m','total','—','—',n(r.wallLength),'Estimativo']); precalc.push(['PAREDES','Montantes','un','—','—',S.calc.studProfile,r.studs,'Estimativo']); if(r.floorIncluded){ precalc.push(['PISO','Área de laje','m2','piso','—',S.calc.floorJoistProfile,n(r.floorArea),'Estimativo']); precalc.push(['PISO','Vigas piso','un','piso',((r.floorProfileHeight||S.calc.floorProfileHeight||0.2)*1000).toFixed(0),S.calc.floorJoistProfile,r.floorJoists,'Estimativo']); if(r.stairOpenArea) precalc.push(['PISO','Abertura escada','m2','piso','—','—',n(r.stairOpenArea),'Estimativo']); if(r.osbIncluded) precalc.push(['PISO','Área OSB','m2','piso',(S.calc.osbThickness*1000).toFixed(0),'OSB',n(r.osbArea),'Estimativo']); } if(r.roofIncluded){ precalc.push(['COBERTURA','Tipo de cobertura','txt',r.roofType||S.calc.roofType,'—','—',r.roofType||S.calc.roofType,'Estimativo']); precalc.push(['COBERTURA','Beirado/pala','m','telhado','—','—',n(r.roofOverhang||S.calc.roofOverhang||0),'Estimativo']); precalc.push(['COBERTURA','Área cobertura','m2','telhado',((S.calc.roofProfileHeight||0.15)*1000).toFixed(0),'—',n(r.roofArea),'Estimativo']); precalc.push(['COBERTURA','Caibros','un','telhado',((S.calc.roofProfileHeight||0.15)*1000).toFixed(0),'C',r.roofRafters,'Estimativo']); if(r.roofOpeningIncluded) precalc.push(['COBERTURA','Abertura cobertura','m2',r.roofOpeningType,'—','—',n(r.roofOpenArea),'Estimativo']); } precalc.push(['GERAL','Massa estimada','kg','—','—','—',n(r.mass),'Indicativo']); }
-  mk(walls,'aloe_lsf360_paredes.csv'); mk(floor,'aloe_lsf360_piso_laje.csv'); mk(roof,'aloe_lsf360_cobertura.csv'); if(openings.length>1) downloadCSVRows(openings,'aloe_lsf360_mapa_vaos.csv'); if(precalc.length>1) downloadCSVRows(precalc,'aloe_lsf360_precalculo.csv'); msg('CSV separados gerados: paredes, piso/laje, cobertura, vãos e pré-cálculo.');
-}
-
 function exportCSV(){
   const rows=[['PROJETO','PAINEL','REFERENCIA','TIPO','TIPO_PAREDE','LARGURA_PAREDE_MM','PERFIL','ALMA_MM','ABA_MM','LABIO_MM','ESPESSURA_MM','KG_M','COMPRIMENTO_MM','OBS']];
   if(S.profiles.length){
@@ -1329,26 +995,11 @@ function exportCSV(){
     rows.push(['PRE-CALCULO','','Montantes','un','—','—',S.calc.studProfile,S.calc.results.studs,'Estimativo']);
     rows.push(['PRE-CALCULO','','Guias','un','—','—',S.calc.trackProfile,S.calc.results.tracks,'Estimativo']);
     rows.push(['PRE-CALCULO','','Massa estimada','kg','—','—','—',n(S.calc.results.mass),'Indicativo']);
-    if(S.calc.results.floorIncluded){
-      rows.push(['PRE-CALCULO','','Área de laje','m2','piso','—','—',n(S.calc.results.floorArea),'Estimativo']);
-      rows.push(['PRE-CALCULO','','Vigas de piso','un','piso','—',S.calc.floorJoistProfile,S.calc.results.floorJoists,'Estimativo']);
-      rows.push(['PRE-CALCULO','','Guias de piso','un','piso','—',S.calc.floorTrackProfile,S.calc.results.floorGuides,'Estimativo']);
-      rows.push(['PRE-CALCULO','','Desenvolvimento piso','m','piso',((S.calc.results.floorProfileHeight||S.calc.floorProfileHeight||0.20)*1000).toFixed(0),S.calc.floorJoistProfile,n(S.calc.results.floorLength),'Estimativo']);
-      if(S.calc.results.stairOpenArea) rows.push(['PRE-CALCULO','','Abertura escada','m2','piso','—','—',n(S.calc.results.stairOpenArea),'Estimativo']);
-      if(S.calc.results.osbIncluded){ rows.push(['PRE-CALCULO','','Área OSB/piso técnico','m2','piso',(S.calc.osbThickness*1000).toFixed(0),'OSB',n(S.calc.results.osbArea),'Estimativo']); rows.push(['PRE-CALCULO','','Linhas OSB/piso técnico','un','piso',(S.calc.osbThickness*1000).toFixed(0),'OSB',S.calc.results.osbLines,'Estimativo']); }
-    }
-    if(S.calc.results.roofIncluded){
-      rows.push(['PRE-CALCULO','','Tipo cobertura','txt','telhado','—','—',S.calc.results.roofType||S.calc.roofType,'Estimativo']);
-      rows.push(['PRE-CALCULO','','Beirado/pala','m','telhado','—','—',n(S.calc.results.roofOverhang||S.calc.roofOverhang||0),'Estimativo']);
-      rows.push(['PRE-CALCULO','','Área cobertura','m2','telhado',((S.calc.roofProfileHeight||0.15)*1000).toFixed(0),S.calc.floorJoistProfile,n(S.calc.results.roofArea),'Estimativo']);
-      rows.push(['PRE-CALCULO','','Caibros de telhado','un','telhado',((S.calc.roofProfileHeight||0.15)*1000).toFixed(0),'C',S.calc.results.roofRafters,'Estimativo']);
-      rows.push(['PRE-CALCULO','','Contrarripas','un','telhado','50','C50x30x1.00',S.calc.results.roofCounter,'Estimativo']);
-      rows.push(['PRE-CALCULO','','Ripas para telhas','un','telhado','30','C30x20x0.80',S.calc.results.roofBattens,'Estimativo']);
-      if(S.calc.results.roofOpeningIncluded) rows.push(['PRE-CALCULO','','Abertura cobertura','m2',S.calc.results.roofOpeningType,'—','—',n(S.calc.results.roofOpenArea),'Estimativo']);
-    }
   }
   if(rows.length===1)return msg('Sem dados para CSV.');
-  downloadCSVRows(rows,'aloe_lsf360_fabrico.csv');msg('CSV gerado com mapa de vãos.');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n')],{type:'text/csv;charset=utf-8'}));
+  a.download='aloe_lsf360_fabrico.csv';a.click();msg('CSV gerado com mapa de vãos.');
 }
 
 function signedData(){
@@ -1491,9 +1142,9 @@ function renderEntityPanel(p,sel){
 }
 
 function panel(){const p=$('#panelBody'),sel=S.selected.map(item).filter(Boolean);if(S.tab==='entity'){renderEntityPanel(p,sel)}
-if(S.tab==='image'){p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>Importa imagem, PDF ou DXF. DWG é indicado para conversão, pois o navegador não lê DWG nativo. Depois calibre a escala e desenhe por cima.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar por 2 pontos</button><button class="btn" id="autoImg">Auto desenho</button><button class="btn" id="hideImg">Ocultar imagem</button><button class="btn danger" id="deleteImg">Apagar imagem</button></div>${S.image?`<p><b>Imagem carregada.</b> ${S.image.calibrated?'Escala definida por 2 pontos.':'Ainda sem calibração manual.'} Escala visual: ${n(S.image.scale,3)}</p>`:'<p>Nenhuma imagem carregada.</p>'}<div class="image-action-note">Depois do Auto desenho pode ocultar ou apagar a imagem/planta importada. As paredes e perfis gerados continuam no projeto.</div></div><div class="card"><h3>Fluxo</h3><p>1. Importar imagem/PDF<br>2. Calibrar por 2 pontos com medida real<br>3. Usar Auto desenho ou desenhar manualmente<br>4. Gerar LSF<br>5. Selecionar perfis<br>6. Pré-cálculo<br>7. CSV</p></div>`;$('#importImg').onclick=()=>$('#imageInput').click();$('#calibImg').onclick=startCalib;$('#autoImg').onclick=autoDetectScaleAndDrawing;$('#hideImg').onclick=hideImportedImage;$('#deleteImg').onclick=deleteImportedImage}
+if(S.tab==='image'){p.innerHTML=`<div class="card"><h3>Importar imagem / PDF / DXF / DWG</h3><p>Importa imagem, PDF ou DXF. DWG é indicado para conversão, pois o navegador não lê DWG nativo. Depois calibre a escala e desenhe por cima.</p><div class="btns"><button class="btn green" id="importImg">Importar imagem</button><button class="btn" id="calibImg">Calibrar por 2 pontos</button><button class="btn" id="autoImg">Auto desenho</button><button class="btn" id="hideImg">Ocultar imagem</button><button class="btn danger" id="deleteImg">Apagar imagem</button></div>${S.image?`<p><b>Imagem carregada.</b> ${S.image.calibrated?'Escala definida por 2 pontos.':'Ainda sem calibração manual.'} Escala visual: ${n(S.image.scale,3)}</p>`:'<p>Nenhuma imagem carregada.</p>'}<div class="image-action-note">Depois do Auto desenho pode ocultar ou apagar a imagem/planta importada. As paredes e perfis gerados continuam no projeto.</div></div><div class="card"><h3>Realce da importação</h3><div class="field"><label><input id="ivDark" type="checkbox" ${S.importView.darkLines?'checked':''}> Escurecer linhas da planta importada</label></div><div class="field"><label><input id="ivContrast" type="checkbox" ${S.importView.contrast?'checked':''}> Fundo mais limpo / maior contraste</label></div><div class="field"><label><input id="ivFill" type="checkbox" ${S.importView.wallFill?'checked':''}> Preencher a preto paredes detetadas no Auto desenho</label></div><div class="field"><label>Opacidade do preenchimento</label><input id="ivOpacity" type="range" min="0.35" max="1" step="0.05" value="${S.importView.fillOpacity||0.88}"></div><p class="image-action-note">Estas opções só alteram a visualização. Não mexem na geometria, vãos, numeração por painel nem CSV.</p></div><div class="card"><h3>Fluxo</h3><p>1. Importar imagem/PDF<br>2. Ativar realce, se necessário<br>3. Calibrar por 2 pontos<br>4. Usar Auto desenho<br>5. Gerar LSF e CSV</p></div>`;$('#importImg').onclick=()=>$('#imageInput').click();$('#calibImg').onclick=startCalib;$('#autoImg').onclick=autoDetectScaleAndDrawing;$('#hideImg').onclick=hideImportedImage;$('#deleteImg').onclick=deleteImportedImage;['ivDark','ivContrast','ivFill'].forEach(id=>{$('#'+id).onchange=()=>{S.importView.darkLines=$('#ivDark').checked;S.importView.contrast=$('#ivContrast').checked;S.importView.wallFill=$('#ivFill').checked;render();panel();}});$('#ivOpacity').oninput=()=>{S.importView.fillOpacity=Number($('#ivOpacity').value)||0.88;document.documentElement.style.setProperty('--wall-fill-opacity',S.importView.fillOpacity);render();}}
 if(S.tab==='selection'){const profiles=[...new Set(items().map(o=>o.profile).filter(Boolean))];p.innerHTML=`<div class="card"><h3>Seleção</h3><div class="btns"><button class="btn" id="multiBtn">${S.multi?'Desativar':'Ativar'} seleção múltipla</button><button class="btn" id="clearBtn">Limpar</button><button class="btn" id="makeExt">Exterior</button><button class="btn" id="makeInt">Interior</button></div><div class="field"><label>Tipo</label><select id="filterType"><option value="all">Todos</option><option value="rect">Retângulos</option><option value="circle">Círculos</option><option value="polygon">Polígonos</option><option value="profile">Perfis LSF</option></select></div><div class="field"><label>Perfil</label><select id="filterProfile"><option value="all">Todos</option>${profiles.map(x=>`<option>${x}</option>`).join('')}</select></div><button class="btn green" id="filterGo">Selecionar filtrados</button></div>`;$('#multiBtn').onclick=()=>{S.multi=!S.multi;panel()};$('#clearBtn').onclick=()=>select(null);$('#makeExt').onclick=()=>{S.selected.map(item).filter(Boolean).forEach(o=>{o.wallType='exterior';o.thickness=wallThickness('exterior')});render();panel();msg('Seleção marcada como parede exterior.')};$('#makeInt').onclick=()=>{S.selected.map(item).filter(Boolean).forEach(o=>{o.wallType='interior';o.thickness=wallThickness('interior')});render();panel();msg('Seleção marcada como parede interior.')};$('#filterGo').onclick=()=>{const t=$('#filterType').value,pr=$('#filterProfile').value;S.selected=items().filter(o=>(t==='all'||(t==='profile'?o.kind==='profile':o.kind===t))&&(pr==='all'||o.profile===pr)).map(o=>o.id);render();panel();$('#selLabel').textContent=S.selected.length+' elemento(s) selecionado(s).'}}
-if(S.tab==='structure'){const r=S.calc.results;const floorRefs=syncFloorProfilesFromHeight();const roofRefs=roofSupportRefsFromHeight(S.calc.roofProfileHeight||0.15);p.innerHTML=`<div class="card"><h3>Pré-cálculo estrutural LSF</h3><p>Estimativa técnica para preparação de fabrico. Não substitui projeto estrutural assinado.</p><div class="field"><label>Altura padrão das paredes (m)</label><input id="calcHeight" type="number" step="0.05" value="${S.calc.height}"></div><div class="field"><label>Largura parede exterior (m)</label><input id="extWall" type="number" step="0.01" value="${S.calc.externalWall||0.150}"></div><div class="field"><label>Largura parede interior (m)</label><input id="intWall" type="number" step="0.01" value="${S.calc.internalWall||0.100}"></div><div class="field"><label>Espaçamento montantes (m)</label><select id="calcSpacing"><option value="0.40">0,40</option><option value="0.60">0,60</option></select></div><hr><div class="field"><label><input id="includeFloor" type="checkbox" ${S.calc.includeFloor?'checked':''}> Incluir desenho automático de chão/laje LSF</label></div><div class="field"><label>Altura do perfil da laje (m)</label><select id="floorProfileHeight"><option value="0.10">0,10</option><option value="0.20">0,20</option><option value="0.25">0,25</option><option value="0.30">0,30</option><option value="0.35">0,35</option><option value="0.40">0,40</option><option value="0.50">0,50</option></select></div><div class="field"><label>Espaçamento vigas de piso (m)</label><select id="floorSpacing"><option value="0.40">0,40</option><option value="0.60">0,60</option></select></div><div class="field"><label>Perfil de piso gerado</label><input id="floorProfilePreview" readonly value="${floorRefs.joist} / ${floorRefs.track}"></div><div class="field"><label><input id="includeStairOpening" type="checkbox" ${S.calc.includeStairOpening?'checked':''}> Abertura da laje para escadas</label></div><div class="field"><label>Largura da abertura (m)</label><input id="stairOpenWidth" type="number" step="0.05" value="${S.calc.stairOpenWidth||1.00}"></div><div class="field"><label>Comprimento da abertura (m)</label><input id="stairOpenLength" type="number" step="0.05" value="${S.calc.stairOpenLength||3.00}"></div><div class="field"><label>Deslocação X da abertura (m)</label><input id="stairOffsetX" type="number" step="0.05" value="${S.calc.stairOffsetX||0}"></div><div class="field"><label>Deslocação Y da abertura (m)</label><input id="stairOffsetY" type="number" step="0.05" value="${S.calc.stairOffsetY||0}"></div><div class="field"><label><input id="includeFloorOSB" type="checkbox" ${S.calc.includeFloorOSB?'checked':''}> Painel OSB / piso técnico sobre a laje</label></div><div class="field"><label>Espessura OSB / piso técnico (m)</label><select id="osbThickness"><option value="0.015">0,015</option><option value="0.018">0,018</option><option value="0.022">0,022</option></select></div><hr><div class="field"><label><input id="includeRoofSupport" type="checkbox" ${S.calc.includeRoofSupport?'checked':''}> Estrutura de apoio do telhado para telhas</label></div><div class="field"><label>Tipo de telhado</label><select id="roofType"><option value="1agua">1 água</option><option value="2aguas">2 águas</option><option value="4aguas">4 águas</option></select></div><div class="field"><label>Beirado / pala da cobertura (m)</label><input id="roofOverhang" type="number" step="0.05" value="${S.calc.roofOverhang||0.30}"></div><div class="field"><label>Modo da inclinação</label><select id="roofSlopeMode"><option value="graus">Graus</option><option value="percent">Percentagem</option><option value="altura">Altura/flecha manual</option></select></div><div class="field"><label>Valor da inclinação</label><input id="roofSlopeValue" type="number" step="0.5" value="${S.calc.roofSlopeValue||25}"></div><div class="field"><label>Altura do perfil da cobertura (m)</label><select id="roofProfileHeight"><option value="0.10">0,10</option><option value="0.15">0,15</option><option value="0.20">0,20</option><option value="0.25">0,25</option></select></div><div class="field"><label>Subida / flecha da cobertura (m)</label><input id="roofRise" type="number" step="0.05" value="${S.calc.roofRise||1.20}"></div><div class="field"><label>Subida calculada da cobertura (m)</label><input id="roofRiseResult" readonly value="${(S.calc.roofRise||1.20).toFixed(2)}"></div><div class="field"><label>Espaçamento caibros (m)</label><select id="roofRafterSpacing"><option value="0.40">0,40</option><option value="0.60">0,60</option><option value="0.80">0,80</option></select></div><div class="field"><label>Espaçamento ripas (m)</label><select id="roofBattenSpacing"><option value="0.30">0,30</option><option value="0.35">0,35</option><option value="0.40">0,40</option></select></div><div class="field"><label>Perfil de cobertura gerado</label><input id="roofProfilePreview" readonly value="${roofRefs.main} / ${roofRefs.guide}"></div><div class="field"><label><input id="includeRoofOpening" type="checkbox" ${S.calc.includeRoofOpening?'checked':''}> Abertura no telhado para claraboia / chaminé</label></div><div class="field"><label>Tipo de abertura</label><select id="roofOpeningType"><option value="claraboia">Claraboia</option><option value="chamine">Chaminé</option></select></div><div class="field"><label>Largura da abertura de cobertura (m)</label><input id="roofOpenWidth" type="number" step="0.05" value="${S.calc.roofOpenWidth||0.80}"></div><div class="field"><label>Comprimento da abertura de cobertura (m)</label><input id="roofOpenLength" type="number" step="0.05" value="${S.calc.roofOpenLength||1.20}"></div><div class="field"><label>Deslocação X da abertura cobertura (m)</label><input id="roofOpenOffsetX" type="number" step="0.05" value="${S.calc.roofOpenOffsetX||0}"></div><div class="field"><label>Deslocação Y da abertura cobertura (m)</label><input id="roofOpenOffsetY" type="number" step="0.05" value="${S.calc.roofOpenOffsetY||0}"></div><hr><div class="field"><label>Vento indicativo kN/m²</label><input id="calcWind" type="number" step="0.05" value="${S.calc.wind}"></div><div class="field"><label>Carga permanente kN/m²</label><input id="calcDead" type="number" step="0.05" value="${S.calc.dead}"></div><div class="field"><label>Sobrecarga kN/m²</label><input id="calcLive" type="number" step="0.05" value="${S.calc.live}"></div><button class="btn green" id="runCalc">Executar pré-cálculo</button><div class="wall-editor-note">Ative apenas as opções pretendidas. Chão/laje, abertura para escadas, OSB/piso técnico e apoio do telhado só entram no modelo e nos cálculos quando ativados.</div></div>${r?`<div class="card"><h3>Resultados</h3><div class="kpi"><div><b>${r.panels}</b><span>painéis/volumes</span></div><div><b>${n(r.wallLength)} m</b><span>perímetro total</span></div><div><b>${n(r.externalLength)} m</b><span>paredes exteriores · ${((r.externalWall||S.calc.externalWall)*1000).toFixed(0)} mm</span></div><div><b>${n(r.internalLength)} m</b><span>paredes interiores · ${((r.internalWall||S.calc.internalWall)*1000).toFixed(0)} mm</span></div><div><b>${r.studs}</b><span>montantes estimados</span></div><div><b>${n(r.mass)} kg</b><span>massa estimada total</span></div></div>${r.floorIncluded?`<div class="kpi"><div><b>${n(r.floorArea)} m²</b><span>área de laje</span></div><div><b>${r.floorJoists}</b><span>vigas de piso</span></div><div><b>${r.floorGuides}</b><span>guias/bordos de piso</span></div><div><b>${n(r.floorLength)} m</b><span>desenvolvimento piso · ${(r.floorProfileHeight*1000).toFixed(0)} mm</span></div></div>`:''}${r.stairOpenArea?`<div class="kpi"><div><b>${n(r.stairOpenArea)} m²</b><span>abertura para escadas</span></div><div><b>${r.osbIncluded?n(r.osbArea)+' m²':'—'}</b><span>área útil OSB/piso técnico</span></div><div><b>${r.osbLines}</b><span>linhas/fiadas OSB</span></div></div>`:''}${r.roofIncluded?`<div class="kpi"><div><b>${n(r.roofArea)} m²</b><span>área aproximada da cobertura (${r.roofType||S.calc.roofType})</span></div><div><b>${r.roofRafters}</b><span>caibros de telhado</span></div><div><b>${r.roofCounter}</b><span>contrarripas</span></div><div><b>${r.roofBattens}</b><span>ripas para telhas</span></div></div><div class="kpi"><div><b>${n(r.roofOverhang||S.calc.roofOverhang||0)} m</b><span>beirado/pala</span></div><div><b>${r.roofSlopeMode||S.calc.roofSlopeMode}</b><span>modo de inclinação</span></div><div><b>${n(r.roofSlopeValue||S.calc.roofSlopeValue||0)}</b><span>valor</span></div></div>`:''}${r.roofOpeningIncluded?`<div class="kpi"><div><b>${n(r.roofOpenArea)} m²</b><span>abertura de cobertura (${r.roofOpeningType})</span></div></div>`:''}${r.warn.length?`<p class="calc-warn">${r.warn.join('<br>')}</p>`:'<p class="calc-ok">Pré-verificação sem avisos críticos.</p>'}<p>Confirme cargas, vãos, aberturas, ligações, contraventamento e normas aplicáveis com técnico responsável.</p></div>`:''}`;$('#calcSpacing').value=S.calc.spacing;$('#floorSpacing').value=S.calc.floorSpacing||0.60;$('#floorProfileHeight').value=String(Number(S.calc.floorProfileHeight||0.20).toFixed(2));$('#osbThickness').value=String(Number(S.calc.osbThickness||0.018).toFixed(3));$('#roofType').value=S.calc.roofType||'2aguas';$('#roofSlopeMode').value=S.calc.roofSlopeMode||'graus';$('#roofProfileHeight').value=String(Number(S.calc.roofProfileHeight||0.15).toFixed(2));$('#roofRafterSpacing').value=S.calc.roofRafterSpacing||0.60;$('#roofBattenSpacing').value=S.calc.roofBattenSpacing||0.35;$('#roofOpeningType').value=S.calc.roofOpeningType||'claraboia'; const updFloor=()=>{S.calc.floorProfileHeight=Number($('#floorProfileHeight').value)||0.20; const refs=syncFloorProfilesFromHeight(); $('#floorProfilePreview').value=refs.joist+' / '+refs.track;}; const updRoof=()=>{const refs=roofSupportRefsFromHeight(Number($('#roofProfileHeight').value)||0.15); $('#roofProfilePreview').value=refs.main+' / '+refs.guide; const bb=(S.shapes.length?polyBBox(S.shapes.flatMap(o=>o.kind==='line'?[o.a,o.b]:pointsOf(o))):{minX:0,maxX:8,minY:0,maxY:6}); S.calc.roofType=$('#roofType').value||S.calc.roofType; S.calc.roofSlopeMode=$('#roofSlopeMode').value||S.calc.roofSlopeMode; S.calc.roofSlopeValue=Number($('#roofSlopeValue').value)||S.calc.roofSlopeValue; S.calc.roofOverhang=Number($('#roofOverhang').value)||0; $('#roofRiseResult').value=roofComputedRise(bb).toFixed(2);}; $('#floorProfileHeight').onchange=updFloor; $('#roofProfileHeight').onchange=updRoof; $('#roofType').onchange=updRoof; $('#roofSlopeMode').onchange=updRoof; $('#roofSlopeValue').oninput=updRoof; $('#roofOverhang').oninput=updRoof; updFloor(); updRoof(); $('#runCalc').onclick=()=>{S.calc.height=Number($('#calcHeight').value)||2.7;S.calc.externalWall=Number($('#extWall').value)||0.150;S.calc.internalWall=Number($('#intWall').value)||0.100;S.calc.spacing=Number($('#calcSpacing').value)||0.6;S.calc.includeFloor=$('#includeFloor').checked;S.calc.floorSpacing=Number($('#floorSpacing').value)||0.6;S.calc.floorProfileHeight=Number($('#floorProfileHeight').value)||0.20;syncFloorProfilesFromHeight();S.calc.includeStairOpening=$('#includeStairOpening').checked;S.calc.stairOpenWidth=Number($('#stairOpenWidth').value)||1.00;S.calc.stairOpenLength=Number($('#stairOpenLength').value)||3.00;S.calc.stairOffsetX=Number($('#stairOffsetX').value)||0;S.calc.stairOffsetY=Number($('#stairOffsetY').value)||0;S.calc.includeFloorOSB=$('#includeFloorOSB').checked;S.calc.osbThickness=Number($('#osbThickness').value)||0.018;S.calc.includeRoofSupport=$('#includeRoofSupport').checked;S.calc.roofType=$('#roofType').value||'2aguas';S.calc.roofOverhang=Number($('#roofOverhang').value)||0.30;S.calc.roofSlopeMode=$('#roofSlopeMode').value||'graus';S.calc.roofSlopeValue=Number($('#roofSlopeValue').value)||25;S.calc.roofProfileHeight=Number($('#roofProfileHeight').value)||0.15;S.calc.roofRise=Number($('#roofRise').value)||1.20;S.calc.roofRafterSpacing=Number($('#roofRafterSpacing').value)||0.60;S.calc.roofBattenSpacing=Number($('#roofBattenSpacing').value)||0.35;S.calc.includeRoofOpening=$('#includeRoofOpening').checked;S.calc.roofOpeningType=$('#roofOpeningType').value||'claraboia';S.calc.roofOpenWidth=Number($('#roofOpenWidth').value)||0.80;S.calc.roofOpenLength=Number($('#roofOpenLength').value)||1.20;S.calc.roofOpenOffsetX=Number($('#roofOpenOffsetX').value)||0;S.calc.roofOpenOffsetY=Number($('#roofOpenOffsetY').value)||0;S.calc.wind=Number($('#calcWind').value)||0.5;S.calc.dead=Number($('#calcDead').value)||0.4;S.calc.live=Number($('#calcLive').value)||0.75;runCalc()}}
+if(S.tab==='structure'){const r=S.calc.results;p.innerHTML=`<div class="card"><h3>Pré-cálculo estrutural LSF</h3><p>Estimativa técnica para preparação de fabrico. Não substitui projeto estrutural assinado.</p><div class="field"><label>Altura padrão das paredes (m)</label><input id="calcHeight" type="number" step="0.05" value="${S.calc.height}"></div><div class="field"><label>Largura parede exterior (m)</label><input id="extWall" type="number" step="0.01" value="${S.calc.externalWall||0.150}"></div><div class="field"><label>Largura parede interior (m)</label><input id="intWall" type="number" step="0.01" value="${S.calc.internalWall||0.100}"></div><div class="field"><label>Espaçamento montantes (m)</label><select id="calcSpacing"><option value="0.40">0,40</option><option value="0.60">0,60</option></select></div><div class="field"><label>Vento indicativo kN/m²</label><input id="calcWind" type="number" step="0.05" value="${S.calc.wind}"></div><div class="field"><label>Carga permanente kN/m²</label><input id="calcDead" type="number" step="0.05" value="${S.calc.dead}"></div><div class="field"><label>Sobrecarga kN/m²</label><input id="calcLive" type="number" step="0.05" value="${S.calc.live}"></div><button class="btn green" id="runCalc">Executar pré-cálculo</button></div>${r?`<div class="card"><h3>Resultados</h3><div class="kpi"><div><b>${r.panels}</b><span>painéis/volumes</span></div><div><b>${n(r.wallLength)} m</b><span>perímetro total</span></div><div><b>${n(r.externalLength)} m</b><span>paredes exteriores · ${((r.externalWall||S.calc.externalWall)*1000).toFixed(0)} mm</span></div><div><b>${n(r.internalLength)} m</b><span>paredes interiores · ${((r.internalWall||S.calc.internalWall)*1000).toFixed(0)} mm</span></div><div><b>${r.studs}</b><span>montantes estimados</span></div><div><b>${n(r.mass)} kg</b><span>aço estimado</span></div></div>${r.warn.length?`<p class="calc-warn">${r.warn.join('<br>')}</p>`:'<p class="calc-ok">Pré-verificação sem avisos críticos.</p>'}<p>Confirme cargas, vãos, aberturas, ligações, contraventamento e normas aplicáveis com técnico responsável.</p></div>`:''}`;$('#calcSpacing').value=S.calc.spacing;$('#runCalc').onclick=()=>{S.calc.height=Number($('#calcHeight').value)||2.7;S.calc.externalWall=Number($('#extWall').value)||0.150;S.calc.internalWall=Number($('#intWall').value)||0.100;S.calc.spacing=Number($('#calcSpacing').value)||0.6;S.calc.wind=Number($('#calcWind').value)||0.5;S.calc.dead=Number($('#calcDead').value)||0.4;S.calc.live=Number($('#calcLive').value)||0.75;runCalc()}}
 if(S.tab==='profiles'){p.innerHTML=`<div class="card"><h3>Perfis LSF</h3><div class="profile-gallery"><figure><img src="assets/lsf-profile-c.svg"><figcaption>Montante C</figcaption></figure><figure><img src="assets/lsf-profile-u.svg"><figcaption>Guia U</figcaption></figure><figure><img src="assets/lsf-profile-l.svg"><figcaption>Cantoneira L</figcaption></figure></div><div class="field"><label>Montante</label><select id="stud"><option>C90x40x0.95</option><option>C100x40x0.95</option><option>C140x40x1.20</option><option>C200x50x1.50</option><option>C300x50x2.00</option></select></div><div class="field"><label>Guia</label><select id="track"><option>U90x40x0.95</option><option>U100x40x0.95</option><option>U140x40x1.20</option><option>U200x50x1.50</option><option>U300x50x2.00</option></select></div><div class="btns"><button class="btn green" id="applyProfiles">Aplicar à seleção</button><button class="btn" id="selStuds">Selecionar montantes</button><button class="btn" id="selTracks">Selecionar guias</button><button class="btn" id="selAllProfiles">Selecionar todos perfis</button></div></div><div class="card"><h3>Perfis gerados</h3><div class="list">${S.profiles.map(o=>`<div class="row ${S.selected.includes(o.id)?'active':''}"><div><b>${o.name}</b><small>${o.type} · ${o.profile} · ${n(lineLength(o))} m</small></div><button data-profilepick="${o.id}">Selecionar</button></div>`).join('')||'<p>Ainda não existem perfis. Clique em Gerar LSF.</p>'}</div></div>`;$('#stud').value=S.calc.studProfile;$('#track').value=S.calc.trackProfile;$('#applyProfiles').onclick=()=>{S.calc.studProfile=$('#stud').value;S.calc.trackProfile=$('#track').value;S.selected.map(item).filter(o=>o?.kind==='profile').forEach(o=>o.profile=o.type==='Montante'?S.calc.studProfile:S.calc.trackProfile);render();panel();msg('Perfis aplicados.')};$('#selStuds').onclick=()=>{S.selected=S.profiles.filter(p=>p.type==='Montante').map(p=>p.id);render();panel();$('#selLabel').textContent=S.selected.length+' montantes selecionados.'};$('#selTracks').onclick=()=>{S.selected=S.profiles.filter(p=>p.type&&p.type.startsWith('Guia')).map(p=>p.id);render();panel();$('#selLabel').textContent=S.selected.length+' guias selecionadas.'};$('#selAllProfiles').onclick=()=>{S.selected=S.profiles.map(p=>p.id);render();panel();$('#selLabel').textContent=S.selected.length+' perfis selecionados.'};$$('[data-profilepick]').forEach(b=>b.onclick=()=>select(item(b.dataset.profilepick),S.multi))}
 if(S.tab==='profileDims'){
   const selected=S.selected.map(item).filter(Boolean);
@@ -1532,7 +1183,7 @@ if(S.tab==='signedProject'){
   $('#printSigned').onclick=()=>{save();printSignedDossier();};
 }
 
-if(S.tab==='csv'){p.innerHTML=`<div class="card"><h3>CSV de fabrico</h3><p>Exporta volumes, perfis LSF individuais e resumo de pré-cálculo.</p><div class="btns"><button class="btn green" id="panelCSV">Gerar CSV</button><button class="btn" id="panelCSVSplit">Gerar CSV separados</button></div></div>`;$('#panelCSV').onclick=exportCSV;$('#panelCSVSplit').onclick=exportSeparatedCSVs}}
+if(S.tab==='csv'){p.innerHTML=`<div class="card"><h3>CSV de fabrico</h3><p>Exporta volumes, perfis LSF individuais e resumo de pré-cálculo.</p><button class="btn green" id="panelCSV">Gerar CSV</button></div>`;$('#panelCSV').onclick=exportCSV}}
 function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#signedBtn').onclick=()=>{S.tab='signedProject';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='signedProject'));panel();};$('#calibrateBtn').onclick=startCalib;$('#autoDetectBtn').onclick=autoDetectScaleAndDrawing;$('#hideImageBtn').onclick=hideImportedImage;$('#deleteImageBtn').onclick=deleteImportedImage;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
 function demo(){const r={kind:'rect',a:{x:-2.4,y:-1.4,z:0},b:{x:2.4,y:1.4,z:0},height:2.7};finish(r);S.selected=[r.id];render();panel()}
 bind();setTool('select');demo();

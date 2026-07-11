@@ -1,17 +1,26 @@
-# Aloe LSF 360 — cobertura avançada
+# Aloe LSF 360 — base numeração + importação realçada
 
-## Novidades
+Versão criada a partir de `Aloe_LSF_360_TEST_PACK_NUMERACAO_VAOS_POR_PAINEL`.
 
-Foram acrescentadas mais 3 funções na cobertura:
+## Mantém
 
-1. **Beirado / pala de cobertura** com valor personalizável em metros.
-2. **Inclinação do telhado** configurável por:
-   - graus;
-   - percentagem;
-   - altura/flecha manual.
-3. **Tipo de telhado**:
-   - 1 água;
-   - 2 águas;
-   - 4 águas.
+- numeração automática dos vãos por painel;
+- associação do vão à parede/painel;
+- mapa de vãos no CSV;
+- edição manual de portas e janelas.
 
-Estas opções entram na geração da estrutura da cobertura e também no pré-cálculo / CSV.
+## Novo
+
+No separador **Imagem**, foram acrescentadas opções:
+
+- escurecer linhas da planta importada;
+- limpar fundo / aumentar contraste;
+- preencher a preto as paredes detetadas no Auto desenho;
+- ajustar opacidade do preenchimento.
+
+## Testes executados
+
+- `node --check app.js`;
+- verificação de ficheiros obrigatórios;
+- verificação das funções principais;
+- confirmação de que não foram introduzidos módulos pesados de cobertura/laje.
