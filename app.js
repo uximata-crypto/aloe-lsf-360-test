@@ -2,7 +2,7 @@
 'use strict';
 const svg=document.getElementById('board'), $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], NS='http://www.w3.org/2000/svg';
 const SCALE=70, ORIGIN={x:600,y:430};
-const S={tool:'select',mode:'2d',tab:'entity',shapes:[],profiles:[],selected:[],draft:null,polygon:[],next:1,multi:false,layers:{image:true,architecture:true,lsf:true,labels:true,terrain:true},importView:{darkLines:true,contrast:true,wallFill:true,fillOpacity:0.88},cam:{yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0},drag:null,view2d:{panX:0,panY:0},image:null,calibration:null,calc:{spacing:0.60,studProfile:'C90x40x0.95',trackProfile:'U90x40x0.95',height:2.70,wind:0.50,dead:0.40,live:0.75,steel:'S280GD Z275',externalWall:0.150,internalWall:0.100,profileDims:{C:{web:90,flange:40,lip:12,thickness:0.95,kgm:1.35},U:{web:90,flange:40,lip:0,thickness:0.95,kgm:1.15}},results:null,signed:{engineer:'Joaquim Diniz',title:'Engenheiro Civil',orderNo:'',insurance:'',verificationCode:'',client:'Jorge Simões',workLocation:'Granja do Ulmeiro',process:'PJD012',date:'Jun.2026',projectName:'Bungalow T2 em LSF',scale:'1/100',length:10.00,width:7.00,wallHeight:2.36,roofRise:1.25,totalHeight:3.61,roofType:'Cobertura de duas águas',structuralSystem:'LSF — Light Steel Framing',steel:'S280GD/S350GD galvanizado, a confirmar por ficha técnica',notes:'Dossier técnico para validação e assinatura do engenheiro responsável.'}}};
+const S={tool:'select',mode:'2d',tab:'entity',shapes:[],profiles:[],selected:[],draft:null,polygon:[],next:1,multi:false,layers:{image:true,architecture:true,lsf:true,labels:true,terrain:true},importView:{darkLines:true,contrast:true,wallFill:true,fillOpacity:0.88},cam:{yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0},drag:null,view2d:{panX:0,panY:0},image:null,wallOverlay:null,calibration:null,calc:{spacing:0.60,studProfile:'C90x40x0.95',trackProfile:'U90x40x0.95',height:2.70,wind:0.50,dead:0.40,live:0.75,steel:'S280GD Z275',externalWall:0.150,internalWall:0.100,profileDims:{C:{web:90,flange:40,lip:12,thickness:0.95,kgm:1.35},U:{web:90,flange:40,lip:0,thickness:0.95,kgm:1.15}},results:null,signed:{engineer:'Joaquim Diniz',title:'Engenheiro Civil',orderNo:'',insurance:'',verificationCode:'',client:'Jorge Simões',workLocation:'Granja do Ulmeiro',process:'PJD012',date:'Jun.2026',projectName:'Bungalow T2 em LSF',scale:'1/100',length:10.00,width:7.00,wallHeight:2.36,roofRise:1.25,totalHeight:3.61,roofType:'Cobertura de duas águas',structuralSystem:'LSF — Light Steel Framing',steel:'S280GD/S350GD galvanizado, a confirmar por ficha técnica',notes:'Dossier técnico para validação e assinatura do engenheiro responsável.'}}};
 function uid(p='O'){return p+(S.next++).toString().padStart(3,'0')}
 function n(v,d=2){return Number(v||0).toFixed(d)}
 function el(t,a={}){const e=document.createElementNS(NS,t);Object.entries(a).forEach(([k,v])=>e.setAttribute(k,v));return e}
@@ -246,7 +246,7 @@ function drawProfiles(){
     if(sel)addText(p.a,p.name+' · '+p.profile,true);
   });
 }
-function render(){clear();if(S.mode==='2d'){svg.append(el('rect',{x:0,y:0,width:1200,height:760,fill:'#f5fbfb'}));grid2D();renderImage();if(S.layers.architecture)S.shapes.forEach(s=>drawShape2D(s));if(S.draft)drawShape2D(S.draft,true);if(S.polygon.length>1)for(let i=0;i<S.polygon.length-1;i++)addLine(world2D(S.polygon[i]),world2D(S.polygon[i+1]),'shape-preview','')}else{grid3D();if(S.layers.architecture)S.shapes.forEach(s=>drawShape3D(s));if(S.draft)drawShape3D(S.draft,true)}drawProfiles()}
+function render(){clear();if(S.mode==='2d'){svg.append(el('rect',{x:0,y:0,width:1200,height:760,fill:'#f5fbfb'}));grid2D();renderImage();renderWallOverlay();if(S.layers.architecture)S.shapes.forEach(s=>drawShape2D(s));if(S.draft)drawShape2D(S.draft,true);if(S.polygon.length>1)for(let i=0;i<S.polygon.length-1;i++)addLine(world2D(S.polygon[i]),world2D(S.polygon[i+1]),'shape-preview','')}else{grid3D();if(S.layers.architecture)S.shapes.forEach(s=>drawShape3D(s));if(S.draft)drawShape3D(S.draft,true)}drawProfiles()}
 function idFrom(target){let t=target;while(t&&t!==svg){if(t.dataset&&t.dataset.id)return t.dataset.id;t=t.parentNode}return null}
 function select(it,add=false){if(!it){if(!add)S.selected=[];$('#selLabel').textContent='Nenhum objeto selecionado.';render();panel();return}if(add||S.multi){S.selected.includes(it.id)?S.selected=S.selected.filter(x=>x!==it.id):S.selected.push(it.id)}else S.selected=[it.id];$('#selLabel').textContent=S.selected.length+' elemento(s): '+it.name;render();panel()}
 function setTool(t){S.tool=t;$$('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));$('#toolLabel').textContent='Ferramenta: '+toolName(t);$('.workspace').classList.toggle('pan-mode',t==='pan');$('#hint').textContent=t==='pan'?'Mão: arraste a tela para navegar. Não move nem altera os objetos.':t==='push'?'Empurrar/Puxar: clique numa forma fechada e arraste para cima/baixo.':t==='calibrate'?'Calibração: clique em dois pontos conhecidos na imagem.':t==='orbit'?'Órbita: arraste em 3D. Roda do rato = zoom.':'Importe uma imagem, calibre, desenhe por cima, gere LSF, pré-calcule e exporte CSV.'}
@@ -437,6 +437,65 @@ function getDarkMap(canvas){
   }
   return {dark,w,h};
 }
+
+function detectVisualWallOverlay(canvas){
+  const map=getDarkMap(canvas), {dark,w,h}=map;
+  const x1=Math.floor(w*0.06), x2=Math.floor(w*0.94), y1=Math.floor(h*0.10), y2=Math.floor(h*0.94);
+  const row=new Array(h).fill(0), col=new Array(w).fill(0);
+  for(let y=y1;y<y2;y++){
+    for(let x=x1;x<x2;x++){
+      if(dark[y*w+x]){row[y]++;col[x]++}
+    }
+  }
+  const rowS=smooth1D(row,3), colS=smooth1D(col,3);
+  const hGroups=groupRuns(rowS,(x2-x1)*0.11,4).filter(g=>g.max>(x2-x1)*0.13);
+  const vGroups=groupRuns(colS,(y2-y1)*0.08,4).filter(g=>g.max>(y2-y1)*0.10);
+  const rects=[];
+  const addRect=(x,y,width,height,type)=>{
+    if(width<3||height<3)return;
+    rects.push({x,y,w:width,h:height,type});
+  };
+  vGroups.forEach(g=>{
+    const bandW=Math.max(6,g.b-g.a+1);
+    addRect(g.a, y1, bandW, y2-y1, 'vertical');
+  });
+  hGroups.forEach(g=>{
+    const bandH=Math.max(6,g.b-g.a+1);
+    addRect(x1, g.a, x2-x1, bandH, 'horizontal');
+  });
+  // fallback: if few bands found, use apparent external rectangle only
+  if(rects.length<4){
+    let minX=w,maxX=0,minY=h,maxY=0;
+    for(let y=y1;y<y2;y++)for(let x=x1;x<x2;x++)if(dark[y*w+x]){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y)}
+    if(maxX>minX&&maxY>minY){
+      const t=Math.max(6,Math.round(Math.min(maxX-minX,maxY-minY)*0.018));
+      addRect(minX,minY,maxX-minX,t,'top');
+      addRect(minX,maxY-t,maxX-minX,t,'bottom');
+      addRect(minX,minY,t,maxY-minY,'left');
+      addRect(maxX-t,minY,t,maxY-minY,'right');
+    }
+  }
+  return {w,h,rects:rects.slice(0,80)};
+}
+function renderWallOverlay(){
+  if(!S.image||!S.wallOverlay||!S.importView?.wallFill||!S.layers.image||S.mode!=='2d')return;
+  const imgX=ORIGIN.x+S.view2d.panX+S.image.x*SCALE;
+  const imgY=ORIGIN.y+S.view2d.panY-S.image.y*SCALE;
+  const imgW=S.image.w*S.image.scale;
+  const imgH=S.image.h*S.image.scale;
+  const sx=imgW/S.wallOverlay.w, sy=imgH/S.wallOverlay.h;
+  S.wallOverlay.rects.forEach(r=>{
+    svg.append(el('rect',{
+      x:imgX+r.x*sx,
+      y:imgY+r.y*sy,
+      width:Math.max(1,r.w*sx),
+      height:Math.max(1,r.h*sy),
+      class:'import-wall-overlay'
+    }));
+  });
+}
+
+
 function detectBuildingBox(map){
   const {dark,w,h}=map;
   // Ignora margens e linhas de cotas exteriores.
@@ -708,6 +767,7 @@ function deleteImportedImage(){
   if(!S.image)return msg('Não existe imagem importada para apagar.');
   if(!confirm('Apagar a imagem/planta importada?\\n\\nAs linhas, paredes, perfis e cálculos gerados mantêm-se.'))return;
   S.image=null;
+  S.wallOverlay=null;
   S.calibration=null;
   S.layers.image=false;
   const cb=document.querySelector('[data-layer="image"]');
@@ -715,7 +775,35 @@ function deleteImportedImage(){
   render();panel();msg('Imagem importada apagada. O desenho gerado foi mantido.');
 }
 
-function importImage(file){if(!file)return;const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{S.image={src:r.result,x:-3.4,y:2.5,w:Math.min(620,img.width),h:Math.min(430,img.height),scale:1};S.layers.image=true;const cb=document.querySelector('[data-layer="image"]');if(cb)cb.checked=true;setMode('2d');msg('Imagem importada. Use Calibrar por 2 pontos.');panel();render()};img.src=r.result};r.readAsDataURL(file)}
+function importImage(file){
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      S.image={src:r.result,x:-3.4,y:2.5,w:Math.min(620,img.width),h:Math.min(430,img.height),scale:1};
+      S.layers.image=true;
+      const canvas=document.createElement('canvas');
+      const maxW=1400, sc=Math.min(1,maxW/img.width);
+      canvas.width=Math.round(img.width*sc);canvas.height=Math.round(img.height*sc);
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      try{S.wallOverlay=detectVisualWallOverlay(canvas)}catch(e){console.warn(e);S.wallOverlay=null}
+      const cb=document.querySelector('[data-layer="image"]');
+      if(cb)cb.checked=true;
+      S.importView.darkLines=true;
+      S.importView.contrast=true;
+      S.importView.wallFill=true;
+      setMode('2d');
+      msg('Imagem importada com paredes estruturais realçadas a preto. Agora calibre por 2 pontos.');
+      panel();
+      render();
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(file)
+}
 function startCalib(){if(!S.image)return msg('Importe primeiro uma imagem.');S.calibration={points:[]};setTool('calibrate');msg('Clique em dois pontos conhecidos na imagem.')}
 function calibClick(w){if(!S.calibration)return;S.calibration.points.push(w);if(S.calibration.points.length===2){render();const meters=Number(prompt('Distância real entre os pontos, em metros:', '5.00'));if(meters>0){const [a,b]=S.calibration.points,cur=Math.hypot(b.x-a.x,b.y-a.y);if(cur>0.001){S.image.calibrated=true;S.image.calibrationMeters=meters;S.image.calibrationWorldDistance=cur;S.image.calibrationPoints=[a,b];S.image.calibrationDirection=Math.abs(b.x-a.x)>=Math.abs(b.y-a.y)?'horizontal':'vertical';msg('Escala definida por 2 pontos: '+n(meters)+' m. O Auto desenho vai usar esta medida.')}}S.calibration=null;setTool('select');render();panel()}else{render();msg('Clique no segundo ponto conhecido.')}}
 function saveProject(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));a.download='aloe_lsf360_projeto.json';a.click()}
@@ -1188,7 +1276,7 @@ if(S.tab==='signedProject'){
 }
 
 if(S.tab==='csv'){p.innerHTML=`<div class="card"><h3>CSV de fabrico</h3><p>Exporta volumes, perfis LSF individuais e resumo de pré-cálculo.</p><button class="btn green" id="panelCSV">Gerar CSV</button></div>`;$('#panelCSV').onclick=exportCSV}}
-function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#signedBtn').onclick=()=>{S.tab='signedProject';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='signedProject'));panel();};$('#calibrateBtn').onclick=startCalib;$('#autoDetectBtn').onclick=autoDetectScaleAndDrawing;$('#hideImageBtn').onclick=hideImportedImage;$('#deleteImageBtn').onclick=deleteImportedImage;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
+function bind(){svg.setAttribute('viewBox','0 0 1200 760');$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));$('#v2').onclick=()=>setMode('2d');$('#v3').onclick=()=>setMode('3d');$('#viewToggle').onclick=()=>setMode(S.mode==='2d'?'3d':'2d');$('#panelToggle').onclick=()=>$('#panel').classList.toggle('hidden');$('#panelClose').onclick=()=>$('#panel').classList.add('hidden');$('#lsfBtn').onclick=generateLSF;$('#calcBtn').onclick=runCalc;$('#csvBtn').onclick=exportCSV;$('#signedBtn').onclick=()=>{S.tab='signedProject';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='signedProject'));panel();};$('#calibrateBtn').onclick=startCalib;$('#autoDetectBtn').onclick=autoDetectScaleAndDrawing;$('#hideImageBtn').onclick=hideImportedImage;$('#deleteImageBtn').onclick=deleteImportedImage;$('#fitBtn').onclick=()=>{S.cam={yaw:-0.72,pitch:0.56,zoom:1,panX:0,panY:0};S.view2d={panX:0,panY:0};render();msg('Vista ajustada.')};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;panel()});$$('[data-layer]').forEach(b=>b.onchange=()=>{S.layers[b.dataset.layer]=b.checked;render()});svg.addEventListener('pointerdown',pointerDown);svg.addEventListener('pointermove',pointerMove);svg.addEventListener('pointerup',pointerUp);svg.addEventListener('wheel',e=>{if(S.mode==='3d'){e.preventDefault();S.cam.zoom=Math.max(0.3,Math.min(3,S.cam.zoom*(e.deltaY<0?1.12:0.89)));render()}},{passive:false});$('#menu').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.action;if(a==='new'){if(confirm('Criar projeto novo?')){S.shapes=[];S.profiles=[];S.selected=[];S.image=null;S.wallOverlay=null;S.calibration=null;S.calc.results=null;render();panel()}}else if(a==='open')$('#projectInput').click();else if(a==='save')saveProject();else if(a==='import')$('#imageInput').click();else if(a==='export')exportCSV();else if(a==='location'){S.tab='geo';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='geo'));panel()}else if(a==='print')window.print()};$('#projectInput').onchange=e=>openProject(e.target.files[0]);$('#imageInput').onchange=e=>importPlanFile(e.target.files[0]);window.addEventListener('keydown',e=>{if(e.key==='Escape'){S.draft=null;S.polygon=[];S.drag=null;S.calibration=null;render()}if(e.key==='Enter'&&S.polygon.length>=3){finish({kind:'polygon',points:[...S.polygon]});S.polygon=[]}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT')removeSelected()})}
 function demo(){const r={kind:'rect',a:{x:-2.4,y:-1.4,z:0},b:{x:2.4,y:1.4,z:0},height:2.7};finish(r);S.selected=[r.id];render();panel()}
 bind();setTool('select');demo();
 })();
