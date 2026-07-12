@@ -1,28 +1,20 @@
-# Aloe LSF 360 — retorno à base estável com menus OK
+# Aloe LSF 360 — menus OK + barra para escurecer planta
 
-Esta versão volta à base indicada como mais segura:
+Esta versão parte da base estável `RETORNO_BASE_MENUS_OK`.
 
-`Aloe_LSF_360_TEST_PACK_NUMERACAO_VAOS_POR_PAINEL`
+## Novo
 
-## Objetivo
+No separador **Imagem**, foi acrescentada a barra:
 
-Corrigir o problema da versão anterior em que os menus deixaram de funcionar.
+- **Escurecer paredes / linhas**
+- **Transparência da planta**
 
-## Mantém
+Também existem botões rápidos:
 
-- menus principais;
-- painel lateral;
-- importação;
-- auto desenho da base anterior;
-- numeração automática dos vãos por painel;
-- associação dos vãos à parede/painel;
-- CSV com mapa de vãos;
-- edição manual dos vãos.
+- **Normal**
+- **Mais escuro**
 
-## Removido nesta versão
+## Importante
 
-Foram removidas as alterações experimentais recentes que estavam a partir o comportamento dos menus.
-
-## Próximo desenvolvimento recomendado
-
-A partir desta versão, só fazer alterações pequenas e testadas uma a uma.
+Esta alteração só mexe na visualização da imagem importada.  
+Não altera menus, Auto desenho, vãos, CSV nem cálculo.

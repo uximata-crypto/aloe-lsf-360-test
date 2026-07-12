@@ -49,3 +49,8 @@
 .door-arc{stroke:#b38c4e;stroke-width:1.7;fill:none;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
 .window-gap{stroke:#2a8ac4;stroke-width:2.4;fill:none;vector-effect:non-scaling-stroke}
 .window-mark{stroke:#166d9d;stroke-width:1.8;fill:none;vector-effect:non-scaling-stroke}
+
+
+.field input[type=range]{
+  width:100%;
+}
