@@ -1,28 +1,26 @@
-# Aloe LSF 360 — realce da importação corrigido
+# Aloe LSF 360 — aberturas exteriores/interiores corrigidas
 
-## Correção
+## Correções desta versão
 
-A versão anterior criava barras pretas falsas na importação.  
-Esta versão corrige isso.
+Esta versão corrige o problema em que o auto desenho:
 
-Agora o realce da importação:
+- desenhava paredes a preto mas **não abria corretamente os vãos**;
+- não mostrava bem **portas e janelas exteriores/interiores**;
+- mantinha algumas paredes contínuas, sem corte visual.
 
-- segue os **píxeis reais** da planta importada;
-- escurece linhas, hachuras e paredes existentes no desenho;
-- não cria linhas verticais/horizontais falsas;
-- não tapa a planta com uma grelha preta artificial.
+## O que passa a acontecer
 
-## Fluxo
+- o auto desenho cria paredes estruturais;
+- as **portas e janelas auto detetadas** passam a cortar visualmente as paredes;
+- o corte é aplicado tanto em paredes exteriores como interiores;
+- o retângulo exterior automático fica apenas como **helper interno**, sem aparecer por cima do desenho;
+- continuam ativas:
+  - importação com realce correto,
+  - calibração por 2 pontos,
+  - numeração de vãos por painel,
+  - CSV com mapa de vãos.
 
-1. Importar imagem/PDF.
-2. A planta aparece com as linhas reais escurecidas.
-3. Calibrar por 2 pontos.
-4. Clicar em Auto desenho para gerar paredes editáveis.
-5. Gerar LSF / CSV.
+## Nota
 
-## Mantém
-
-- base `NUMERACAO_VAOS_POR_PAINEL`;
-- numeração automática dos vãos;
-- associação dos vãos a parede/painel;
-- CSV com mapa de vãos.
+A deteção automática continua dependente da qualidade da planta importada.
+Se necessário, a posição/largura/altura dos vãos pode ser ajustada manualmente no painel.

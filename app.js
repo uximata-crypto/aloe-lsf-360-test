@@ -116,24 +116,48 @@ function offsetSegmentWorld(a,b,off){
   const nx=-dy/L, ny=dx/L;
   return {a:{x:a.x+nx*off,y:a.y+ny*off,z:a.z||0}, b:{x:b.x+nx*off,y:b.y+ny*off,z:b.z||0}};
 }
+
+function visibleShape(s){return !(s&&s.helper)}
+function splitWallByOpenings(a,b,wallType=null){
+  const arr=openingsOnWallSegment(a,b,wallType);
+  if(!arr.length) return [[a,b]];
+  const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;
+  const ux=dx/L, uy=dy/L;
+  const pieces=[];
+  let t0=0;
+  arr.forEach(op=>{
+    const start=Math.max(0, Math.min(1, op.start));
+    const end=Math.max(0, Math.min(1, op.end));
+    if(start>t0+0.003) pieces.push([{x:a.x+ux*L*t0,y:a.y+uy*L*t0,z:a.z||0},{x:a.x+ux*L*start,y:a.y+uy*L*start,z:b.z||0}]);
+    t0=Math.max(t0,end);
+  });
+  if(t0<1-0.003) pieces.push([{x:a.x+ux*L*t0,y:a.y+uy*L*t0,z:a.z||0},{x:b.x,y:b.y,z:b.z||0}]);
+  return pieces.filter(p=>Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)>0.03);
+}
+
 function drawWallLine2D(s,sel){
   const cls=wallStrokeClass(s,sel);
   const th=Number(s.thickness)||wallThickness(s.wallType||'interior');
+  const pieces=splitWallByOpenings(s.a,s.b,s.wallType);
   if(!isOpening(s) && S.importView?.wallFill && (s.autoDetected||s.imported) && th>0.03){
-    const seg1=offsetSegmentWorld(s.a,s.b,th/2), seg2=offsetSegmentWorld(s.a,s.b,-th/2);
-    const pts=[world2D(seg1.a),world2D(seg1.b),world2D(seg2.b),world2D(seg2.a)];
-    addPoly(pts, sel?'wall-fill-black selected':'wall-fill-black', s.id);
-    addLine(world2D(s.a),world2D(s.b), sel?'wall-center selected':'wall-center', s.id);
+    pieces.forEach(seg=>{
+      const seg1=offsetSegmentWorld(seg[0],seg[1],th/2), seg2=offsetSegmentWorld(seg[0],seg[1],-th/2);
+      const pts=[world2D(seg1.a),world2D(seg1.b),world2D(seg2.b),world2D(seg2.a)];
+      addPoly(pts, sel?'wall-fill-black selected':'wall-fill-black', s.id);
+      addLine(world2D(seg[0]),world2D(seg[1]), sel?'wall-center selected':'wall-center', s.id);
+    });
     return;
   }
   if(!isOpening(s) && s.doubleLine && th>0.03){
-    const seg1=offsetSegmentWorld(s.a,s.b,th/2), seg2=offsetSegmentWorld(s.a,s.b,-th/2);
-    addLine(world2D(seg1.a),world2D(seg1.b),cls,s.id);
-    addLine(world2D(seg2.a),world2D(seg2.b),cls,s.id);
-    if(sel)addLine(world2D(s.a),world2D(s.b),'wall-center selected',s.id);
+    pieces.forEach(seg=>{
+      const seg1=offsetSegmentWorld(seg[0],seg[1],th/2), seg2=offsetSegmentWorld(seg[0],seg[1],-th/2);
+      addLine(world2D(seg1.a),world2D(seg1.b),cls,s.id);
+      addLine(world2D(seg2.a),world2D(seg2.b),cls,s.id);
+      if(sel)addLine(world2D(seg[0]),world2D(seg[1]),'wall-center selected',s.id);
+    });
     return;
   }
-  addLine(world2D(s.a),world2D(s.b),cls,s.id);
+  pieces.forEach(seg=>addLine(world2D(seg[0]),world2D(seg[1]),cls,s.id));
 }
 
 
@@ -211,6 +235,7 @@ function renderImage(){
   }
 }
 function drawShape2D(s,preview=false){
+  if(!visibleShape(s)) return;
   const sel=S.selected.includes(s.id),cls=preview?'shape-preview':('shape-base'+(sel?' selected':''));
   if(s.kind==='line'){
     if(preview)addLine(world2D(s.a),world2D(s.b),'shape-preview',s.id);
@@ -227,9 +252,10 @@ function facesOf(s){const base=pointsOf(s),h=s.height||0;if(!isClosed(s)||h<=0.0
 function avgDepth(f){return f.pts.reduce((a,p)=>a+project(p).depth,0)/f.pts.length}
 
 function drawShape3D(s,preview=false){
+  if(!visibleShape(s)) return;
   const sel=S.selected.includes(s.id);
   if(s.kind==='line'){
-    if(isOpening(s)) drawOpening3D(s,sel); else addLine(project(s.a),project(s.b),wallStrokeClass(s,sel),s.id);
+    if(isOpening(s)) drawOpening3D(s,sel); else splitWallByOpenings(s.a,s.b,s.wallType).forEach(seg=>addLine(project(seg[0]),project(seg[1]),wallStrokeClass(s,sel),s.id));
     return;
   }
   if(!s.height||s.height<=0.001){
@@ -667,6 +693,113 @@ function detectWallAndOpenings(map,box,widthM,heightM){
 function detectWallSegments(map,box,widthM,heightM){
   return detectWallAndOpenings(map,box,widthM,heightM).segments;
 }
+async 
+function openingsFromSegmentsRefined(map,box,widthM,heightM,segs){
+  const {dark,w,h}=map;
+  const x1=Math.max(0,Math.floor(box.x1)),x2=Math.min(w-1,Math.ceil(box.x2));
+  const y1=Math.max(0,Math.floor(box.y1)),y2=Math.min(h-1,Math.ceil(box.y2));
+  const bw=x2-x1,bh=y2-y1;
+  function worldToPxX(x){ return Math.round(x1 + ((x + widthM/2)/widthM)*bw); }
+  function worldToPxY(y){ return Math.round(y1 + ((heightM/2 - y)/heightM)*bh); }
+  function pxToWorld(px,py){return {x:(px-x1)/bw*widthM-widthM/2, y:heightM/2-(py-y1)/bh*heightM, z:0};}
+  const out=[];
+  segs.forEach(seg=>{
+    const vertical=Math.abs(seg.a.x-seg.b.x) < Math.abs(seg.a.y-seg.b.y);
+    const xA=worldToPxX(seg.a.x), yA=worldToPxY(seg.a.y), xB=worldToPxX(seg.b.x), yB=worldToPxY(seg.b.y);
+    const bandHalf=Math.max(2, Math.round((Number(seg.thickness)||0.10) * (vertical?bw/widthM:bh/heightM) * 0.6));
+    const p0=vertical?Math.min(yA,yB):Math.min(xA,xB);
+    const p1=vertical?Math.max(yA,yB):Math.max(xA,xB);
+    const center=vertical?Math.round((xA+xB)/2):Math.round((yA+yB)/2);
+    const occ=[];
+    for(let p=p0;p<=p1;p++){
+      let sum=0, tot=0;
+      if(vertical){
+        for(let xx=center-bandHalf; xx<=center+bandHalf; xx++){
+          if(xx>=0&&xx<w&&p>=0&&p<h){ tot++; sum+=dark[p*w+xx]; }
+        }
+      }else{
+        for(let yy=center-bandHalf; yy<=center+bandHalf; yy++){
+          if(yy>=0&&yy<h&&p>=0&&p<w){ tot++; sum+=dark[yy*w+p]; }
+        }
+      }
+      occ.push(tot?sum/tot:0);
+    }
+    let start=-1, gaps=0;
+    const toMeters = vertical ? (heightM/bh) : (widthM/bw);
+    for(let i=0;i<occ.length;i++){
+      const off = occ[i] < 0.22;
+      if(off){ if(start<0) start=i; gaps=0; }
+      else if(start>=0){
+        gaps++;
+        if(gaps>2){
+          const end=i-gaps;
+          const lenM=(end-start)*toMeters;
+          if(lenM>=0.45 && lenM<=2.40){
+            const fromPx=p0+start, toPx=p0+end;
+            const bandA=vertical?center-bandHalf:center-bandHalf;
+            const bandB=vertical?center+bandHalf:center+bandHalf;
+            const arc=detectArcNearGap(map, vertical?'vertical':'horizontal', center, fromPx, toPx, bandA, bandB);
+            const nearBoundary = vertical ? (Math.abs(center-x1)<bw*0.10 || Math.abs(center-x2)<bw*0.10)
+                                          : (Math.abs(center-y1)<bh*0.10 || Math.abs(center-y2)<bh*0.10);
+            let openingType='window';
+            if(arc) openingType='door';
+            else if(lenM>=0.70 && lenM<=1.40 && !nearBoundary) openingType='door';
+            else openingType='window';
+            const a=vertical?pxToWorld(center,fromPx):pxToWorld(fromPx,center);
+            const b=vertical?pxToWorld(center,toPx):pxToWorld(toPx,center);
+            out.push({a,b,orientation:vertical?'vertical':'horizontal',openingType,lengthM:lenM,autoDetected:true});
+          }
+          start=-1; gaps=0;
+        }
+      }
+    }
+    if(start>=0){
+      const end=occ.length-1;
+      const lenM=(end-start)*toMeters;
+      if(lenM>=0.45 && lenM<=2.40){
+        const fromPx=p0+start, toPx=p0+end;
+        const bandA=vertical?center-bandHalf:center-bandHalf;
+        const bandB=vertical?center+bandHalf:center+bandHalf;
+        const arc=detectArcNearGap(map, vertical?'vertical':'horizontal', center, fromPx, toPx, bandA, bandB);
+        const nearBoundary = vertical ? (Math.abs(center-x1)<bw*0.10 || Math.abs(center-x2)<bw*0.10)
+                                      : (Math.abs(center-y1)<bh*0.10 || Math.abs(center-y2)<bh*0.10);
+        let openingType='window';
+        if(arc) openingType='door';
+        else if(lenM>=0.70 && lenM<=1.40 && !nearBoundary) openingType='door';
+        else openingType='window';
+        const a=vertical?pxToWorld(center,fromPx):pxToWorld(fromPx,center);
+        const b=vertical?pxToWorld(center,toPx):pxToWorld(toPx,center);
+        out.push({a,b,orientation:vertical?'vertical':'horizontal',openingType,lengthM:lenM,autoDetected:true});
+      }
+    }
+  });
+  const uniq=[];
+  out.forEach(o=>{
+    const key=[o.openingType,Math.round(o.a.x*20),Math.round(o.a.y*20),Math.round(o.b.x*20),Math.round(o.b.y*20)].join('|');
+    const rkey=[o.openingType,Math.round(o.b.x*20),Math.round(o.b.y*20),Math.round(o.a.x*20),Math.round(o.a.y*20)].join('|');
+    if(!uniq.some(u=>u.key===key||u.key===rkey)) uniq.push({...o,key});
+  });
+  return uniq.map(({key,...rest})=>rest);
+}
+
+function openingsLinkedToNearestWalls(openings,segs){
+  return openings.map(op=>{
+    let best=null, bestD=1e9;
+    segs.forEach(s=>{
+      const mx=(op.a.x+op.b.x)/2,my=(op.a.y+op.b.y)/2;
+      const ax=s.a.x, ay=s.a.y, bx=s.b.x, by=s.b.y;
+      const dx=bx-ax, dy=by-ay, L2=dx*dx+dy*dy || 1;
+      let t=((mx-ax)*dx+(my-ay)*dy)/L2; t=Math.max(0,Math.min(1,t));
+      const px=ax+t*dx, py=ay+t*dy;
+      const d=Math.hypot(mx-px,my-py);
+      const sameOrient=(Math.abs(op.a.x-op.b.x) < Math.abs(op.a.y-op.b.y)) === (Math.abs(s.a.x-s.b.x) < Math.abs(s.a.y-s.b.y));
+      if(sameOrient && d<bestD){ bestD=d; best=s; }
+    });
+    return best && bestD<0.25 ? {...op, associatedWallId:best.id, associatedWallName:best.name, wallType:best.wallType} : op;
+  });
+}
+
+
 async function detectDimensionsOCR(){
   if(!S.image || !window.Tesseract)return {};
   try{
@@ -745,7 +878,7 @@ async function autoDetectScaleAndDrawing(){
       heightM=Number(prompt('Profundidade exterior em metros:', heightM||'7.00'))||7;
     }
     S.shapes=S.shapes.filter(s=>!s.autoDetected);
-    const rect={kind:'rect',a:{x:-widthM/2,y:-heightM/2,z:0},b:{x:widthM/2,y:heightM/2,z:0},height:Number(S.calc?.height)||2.7,wallType:'exterior',thickness:Number(S.calc.externalWall)||0.150,autoDetected:true};
+    const rect={kind:'rect',a:{x:-widthM/2,y:-heightM/2,z:0},b:{x:widthM/2,y:heightM/2,z:0},height:Number(S.calc?.height)||2.7,wallType:'exterior',thickness:Number(S.calc.externalWall)||0.150,autoDetected:true,helper:true};
     rect.id=uid('A');rect.name='Planta exterior auto '+n(widthM)+'x'+n(heightM)+' m';
     S.shapes.push(rect);
     const detected=detectWallAndOpenings(map,box,widthM,heightM);
@@ -757,9 +890,22 @@ async function autoDetectScaleAndDrawing(){
       line.id=uid('W');line.name='Parede auto '+(i+1);
       S.shapes.push(line);
     });
-    const openings=detected.openings.filter(o=>Math.hypot(o.b.x-o.a.x,o.b.y-o.a.y)>=0.40);
+    let openings=detected.openings.filter(o=>Math.hypot(o.b.x-o.a.x,o.b.y-o.a.y)>=0.40);
+    const refined=openingsFromSegmentsRefined(map,box,widthM,heightM,segs);
+    if(refined.length>=openings.length) openings=refined;
+    else openings=openings.concat(refined);
+    // remove duplicates and associate each opening to the nearest wall/painel
+    const dedup=[];
+    openings.forEach(o=>{
+      const key=[o.openingType,Math.round(o.a.x*20),Math.round(o.a.y*20),Math.round(o.b.x*20),Math.round(o.b.y*20)].join('|');
+      const rkey=[o.openingType,Math.round(o.b.x*20),Math.round(o.b.y*20),Math.round(o.a.x*20),Math.round(o.a.y*20)].join('|');
+      if(!dedup.some(u=>u.key===key||u.key===rkey)) dedup.push({...o,key});
+    });
+    openings=openingsLinkedToNearestWalls(dedup.map(({key,...rest})=>rest), S.shapes.filter(s=>s.kind==='line' && !isOpening(s)));
     openings.forEach((o,i)=>{
-      const op={kind:'line',a:o.a,b:o.b,openingType:o.openingType,wallType:classifySegmentWall(o.a,o.b,-1),thickness:o.openingType==='door'?0.05:0.04,autoDetected:true,imported:true,doorHinge:'start',doorSwingSign:1};
+      const op={kind:'line',a:o.a,b:o.b,openingType:o.openingType,wallType:o.wallType||classifySegmentWall(o.a,o.b,-1),thickness:o.openingType==='door'?0.05:0.04,autoDetected:true,imported:true,doorHinge:'start',doorSwingSign:1};
+      op.associatedWall=o.associatedWallName||'—';
+      op.associatedPanel=o.associatedPanel||'—';
       op.id=uid(o.openingType==='door'?'D':'J');
       op.name=(o.openingType==='door'?'Porta auto ':'Janela auto ')+(i+1);
       setOpeningHeights(op,o.openingType==='door'?2.10:1.20,o.openingType==='window'?0.90:null);
@@ -770,7 +916,7 @@ async function autoDetectScaleAndDrawing(){
     setMode('2d');render();panel();
     const nDoors=openings.filter(o=>o.openingType==='door').length;
     const nWindows=openings.filter(o=>o.openingType==='window').length;
-    msg('Auto desenho corrigido: '+n(widthM)+' x '+n(heightM)+' m, '+segs.length+' paredes, '+nDoors+' portas e '+nWindows+' janelas. As paredes ficam a preto e sem seleção laranja.');
+    msg('Auto desenho corrigido: '+n(widthM)+' x '+n(heightM)+' m, '+segs.length+' paredes, '+nDoors+' portas e '+nWindows+' janelas. As aberturas exteriores/interiores passam a cortar as paredes automaticamente.');
   }catch(e){
     console.error(e);
     msg('Não foi possível detetar automaticamente. Use calibrar por dois pontos.');
