@@ -1,26 +1,28 @@
-# Aloe LSF 360 — aberturas exteriores/interiores corrigidas
+# Aloe LSF 360 — retorno à base estável com menus OK
 
-## Correções desta versão
+Esta versão volta à base indicada como mais segura:
 
-Esta versão corrige o problema em que o auto desenho:
+`Aloe_LSF_360_TEST_PACK_NUMERACAO_VAOS_POR_PAINEL`
 
-- desenhava paredes a preto mas **não abria corretamente os vãos**;
-- não mostrava bem **portas e janelas exteriores/interiores**;
-- mantinha algumas paredes contínuas, sem corte visual.
+## Objetivo
 
-## O que passa a acontecer
+Corrigir o problema da versão anterior em que os menus deixaram de funcionar.
 
-- o auto desenho cria paredes estruturais;
-- as **portas e janelas auto detetadas** passam a cortar visualmente as paredes;
-- o corte é aplicado tanto em paredes exteriores como interiores;
-- o retângulo exterior automático fica apenas como **helper interno**, sem aparecer por cima do desenho;
-- continuam ativas:
-  - importação com realce correto,
-  - calibração por 2 pontos,
-  - numeração de vãos por painel,
-  - CSV com mapa de vãos.
+## Mantém
 
-## Nota
+- menus principais;
+- painel lateral;
+- importação;
+- auto desenho da base anterior;
+- numeração automática dos vãos por painel;
+- associação dos vãos à parede/painel;
+- CSV com mapa de vãos;
+- edição manual dos vãos.
 
-A deteção automática continua dependente da qualidade da planta importada.
-Se necessário, a posição/largura/altura dos vãos pode ser ajustada manualmente no painel.
+## Removido nesta versão
+
+Foram removidas as alterações experimentais recentes que estavam a partir o comportamento dos menus.
+
+## Próximo desenvolvimento recomendado
+
+A partir desta versão, só fazer alterações pequenas e testadas uma a uma.
