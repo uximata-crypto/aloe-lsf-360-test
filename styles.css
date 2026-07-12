@@ -51,8 +51,8 @@
 .window-mark{stroke:#166d9d;stroke-width:1.8;fill:none;vector-effect:non-scaling-stroke}
 
 :root{--wall-fill-opacity:.88}
-.plan-dark-lines{opacity:.95}
+.plan-dark-lines{opacity:1;filter:grayscale(1) contrast(320%) brightness(55%)}
 .plan-contrast{mix-blend-mode:multiply}
-.plan-white-wash{fill:#fff;opacity:.14;pointer-events:none}
+.plan-white-wash{fill:#fff;opacity:.03;pointer-events:none}
 .wall-fill-black{fill:#050505;fill-opacity:var(--wall-fill-opacity,.88);stroke:#050505;stroke-width:1.15;vector-effect:non-scaling-stroke}
 .wall-fill-black.selected{fill:#111;fill-opacity:.95;stroke:#ff9f1a;stroke-width:2.4}

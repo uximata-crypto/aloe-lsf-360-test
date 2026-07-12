@@ -199,7 +199,6 @@ function renderImage(){
   const x=ORIGIN.x+S.view2d.panX+S.image.x*SCALE,y=ORIGIN.y+S.view2d.panY-S.image.y*SCALE,w=S.image.w*S.image.scale,h=S.image.h*S.image.scale;
   const cls='imported-image '+(S.importView?.darkLines?'plan-dark-lines':'')+' '+(S.importView?.contrast?'plan-contrast':'');
   const attrs={href:S.image.src,x,y,width:w,height:h,class:cls.trim()};
-  if(S.importView?.darkLines) attrs.filter='url(#plan-dark-filter)';
   svg.append(el('image',attrs));
   if(S.importView?.contrast) svg.append(el('rect',{x,y,width:w,height:h,class:'plan-white-wash'}));
   if(S.calibration?.points?.length){
@@ -433,36 +432,41 @@ function getDarkMap(canvas){
     for(let x=0;x<w;x++){
       const i=(y*w+x)*4, r=data[i],g=data[i+1],b=data[i+2],a=data[i+3];
       const gray=(r+g+b)/3;
-      if(a>20 && gray<115)dark[y*w+x]=1;
+      if(a>20 && gray<178)dark[y*w+x]=1;
     }
   }
   return {dark,w,h};
 }
 function detectBuildingBox(map){
   const {dark,w,h}=map;
-  // Ignora margens onde normalmente aparecem cotas, setas e textos exteriores.
-  const ix1=Math.floor(w*0.04), ix2=Math.floor(w*0.96);
-  const iy1=Math.floor(h*0.11), iy2=Math.floor(h*0.96);
+  // Ignora margens e linhas de cotas exteriores.
+  const ix1=Math.floor(w*0.06), ix2=Math.floor(w*0.94);
+  const iy1=Math.floor(h*0.12), iy2=Math.floor(h*0.94);
   const row=new Array(h).fill(0), col=new Array(w).fill(0);
   for(let y=iy1;y<iy2;y++){
     for(let x=ix1;x<ix2;x++){
       if(dark[y*w+x]){row[y]++;col[x]++}
     }
   }
-  const rowGroups=groupRuns(row,(ix2-ix1)*0.16,2);
-  const colGroups=groupRuns(col,(iy2-iy1)*0.13,2);
+  const rowS=smooth1D(row,3), colS=smooth1D(col,3);
+  let rowGroups=groupRuns(rowS,(ix2-ix1)*0.105,4).filter(g=>(g.b-g.a)>=3 && g.max>(ix2-ix1)*0.13);
+  let colGroups=groupRuns(colS,(iy2-iy1)*0.085,4).filter(g=>(g.b-g.a)>=3 && g.max>(iy2-iy1)*0.10);
+
+  // Se houver demasiados grupos, usar os extremos dos grupos espessos.
   const top=rowGroups[0], bottom=rowGroups[rowGroups.length-1], left=colGroups[0], right=colGroups[colGroups.length-1];
-  if(top&&bottom&&left&&right){
+  if(top&&bottom&&left&&right && right.mid-left.mid>w*0.20 && bottom.mid-top.mid>h*0.20){
     return {x1:left.mid,y1:top.mid,x2:right.mid,y2:bottom.mid};
   }
-  // Fallback: bounding box de píxeis escuros, mas só na zona útil central.
+
+  // Fallback robusto: bounding box dos píxeis escuros centrais, com redução das cotas exteriores.
   let minX=w,maxX=0,minY=h,maxY=0;
   for(let y=iy1;y<iy2;y++){
     for(let x=ix1;x<ix2;x++){
       if(dark[y*w+x]){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y)}
     }
   }
-  return {x1:minX,y1:minY,x2:maxX,y2:maxY};
+  const padX=(maxX-minX)*0.03, padY=(maxY-minY)*0.03;
+  return {x1:minX+padX,y1:minY+padY,x2:maxX-padX,y2:maxY-padY};
 }
 
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -496,8 +500,8 @@ function detectWallAndOpenings(map,box,widthM,heightM){
   const col=new Array(bw).fill(0), row=new Array(bh).fill(0);
   for(let y=y1;y<=y2;y++) for(let x=x1;x<=x2;x++) if(dark[y*w+x]){col[x-x1]++;row[y-y1]++;}
   const colS=smooth1D(col,2), rowS=smooth1D(row,2);
-  const vGroups=groupRuns(colS,bh*0.018,1).filter(g=>g.max>bh*0.024);
-  const hGroups=groupRuns(rowS,bw*0.018,1).filter(g=>g.max>bw*0.024);
+  const vGroups=groupRuns(colS,bh*0.030,3).filter(g=>(g.b-g.a)>=2 && g.max>bh*0.040);
+  const hGroups=groupRuns(rowS,bw*0.030,3).filter(g=>(g.b-g.a)>=2 && g.max>bw*0.040);
   const segs=[], openings=[];
   function pxToWorld(px,py){return {x:(px-x1)/bw*widthM-widthM/2, y:heightM/2-(py-y1)/bh*heightM, z:0};}
   function thMeters(px,orient){
@@ -675,11 +679,11 @@ async function autoDetectScaleAndDrawing(){
       S.shapes.push(op);
     });
     numberOpeningsByPanel();
-    S.selected=S.shapes.filter(s=>s.autoDetected).map(s=>s.id);
+    S.selected=[];
     setMode('2d');render();panel();
     const nDoors=openings.filter(o=>o.openingType==='door').length;
     const nWindows=openings.filter(o=>o.openingType==='window').length;
-    msg('Auto desenho completo: '+n(widthM)+' x '+n(heightM)+' m, '+segs.length+' paredes, '+nDoors+' portas e '+nWindows+' janelas detetadas. Reveja e complete se necessário.');
+    msg('Auto desenho corrigido: '+n(widthM)+' x '+n(heightM)+' m, '+segs.length+' paredes, '+nDoors+' portas e '+nWindows+' janelas. As paredes ficam a preto e sem seleção laranja.');
   }catch(e){
     console.error(e);
     msg('Não foi possível detetar automaticamente. Use calibrar por dois pontos.');
