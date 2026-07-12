@@ -74,3 +74,22 @@
   opacity:.02;
   pointer-events:none;
 }
+
+
+.plan-original{
+  opacity:.42;
+  filter:grayscale(1) contrast(120%) brightness(105%);
+}
+.plan-line-overlay{
+  opacity:.95;
+  mix-blend-mode:multiply;
+  pointer-events:none;
+}
+.plan-white-wash{
+  fill:#fff;
+  opacity:.00;
+  pointer-events:none;
+}
+.import-wall-overlay{
+  display:none;
+}

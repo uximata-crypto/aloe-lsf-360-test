@@ -197,9 +197,12 @@ function grid3D(){if(!S.layers.terrain)return;svg.append(el('rect',{x:0,y:0,widt
 function renderImage(){
   if(!S.image||!S.layers.image||S.mode!=='2d')return;
   const x=ORIGIN.x+S.view2d.panX+S.image.x*SCALE,y=ORIGIN.y+S.view2d.panY-S.image.y*SCALE,w=S.image.w*S.image.scale,h=S.image.h*S.image.scale;
-  const cls='imported-image '+(S.importView?.darkLines?'plan-dark-lines':'')+' '+(S.importView?.contrast?'plan-contrast':'');
-  const attrs={href:S.image.src,x,y,width:w,height:h,class:cls.trim()};
-  svg.append(el('image',attrs));
+  // First draw the original plan lightly, so the user still sees the real source.
+  svg.append(el('image',{href:S.image.src,x,y,width:w,height:h,class:'imported-image plan-original'}));
+  // Then draw a pixel-accurate black overlay made from the actual imported drawing lines/hatches.
+  if(S.importView?.darkLines && S.image.lineSrc){
+    svg.append(el('image',{href:S.image.lineSrc,x,y,width:w,height:h,class:'plan-line-overlay'}));
+  }
   if(S.importView?.contrast) svg.append(el('rect',{x,y,width:w,height:h,class:'plan-white-wash'}));
   if(S.calibration?.points?.length){
     const pts=S.calibration.points.map(world2D);
@@ -207,7 +210,6 @@ function renderImage(){
     pts.forEach(p=>svg.append(el('circle',{cx:p.x,cy:p.y,r:7,class:'calib-point'})))
   }
 }
-
 function drawShape2D(s,preview=false){
   const sel=S.selected.includes(s.id),cls=preview?'shape-preview':('shape-base'+(sel?' selected':''));
   if(s.kind==='line'){
@@ -246,7 +248,7 @@ function drawProfiles(){
     if(sel)addText(p.a,p.name+' · '+p.profile,true);
   });
 }
-function render(){clear();if(S.mode==='2d'){svg.append(el('rect',{x:0,y:0,width:1200,height:760,fill:'#f5fbfb'}));grid2D();renderImage();renderWallOverlay();if(S.layers.architecture)S.shapes.forEach(s=>drawShape2D(s));if(S.draft)drawShape2D(S.draft,true);if(S.polygon.length>1)for(let i=0;i<S.polygon.length-1;i++)addLine(world2D(S.polygon[i]),world2D(S.polygon[i+1]),'shape-preview','')}else{grid3D();if(S.layers.architecture)S.shapes.forEach(s=>drawShape3D(s));if(S.draft)drawShape3D(S.draft,true)}drawProfiles()}
+function render(){clear();if(S.mode==='2d'){svg.append(el('rect',{x:0,y:0,width:1200,height:760,fill:'#f5fbfb'}));grid2D();renderImage();if(S.layers.architecture)S.shapes.forEach(s=>drawShape2D(s));if(S.draft)drawShape2D(S.draft,true);if(S.polygon.length>1)for(let i=0;i<S.polygon.length-1;i++)addLine(world2D(S.polygon[i]),world2D(S.polygon[i+1]),'shape-preview','')}else{grid3D();if(S.layers.architecture)S.shapes.forEach(s=>drawShape3D(s));if(S.draft)drawShape3D(S.draft,true)}drawProfiles()}
 function idFrom(target){let t=target;while(t&&t!==svg){if(t.dataset&&t.dataset.id)return t.dataset.id;t=t.parentNode}return null}
 function select(it,add=false){if(!it){if(!add)S.selected=[];$('#selLabel').textContent='Nenhum objeto selecionado.';render();panel();return}if(add||S.multi){S.selected.includes(it.id)?S.selected=S.selected.filter(x=>x!==it.id):S.selected.push(it.id)}else S.selected=[it.id];$('#selLabel').textContent=S.selected.length+' elemento(s): '+it.name;render();panel()}
 function setTool(t){S.tool=t;$$('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));$('#toolLabel').textContent='Ferramenta: '+toolName(t);$('.workspace').classList.toggle('pan-mode',t==='pan');$('#hint').textContent=t==='pan'?'Mão: arraste a tela para navegar. Não move nem altera os objetos.':t==='push'?'Empurrar/Puxar: clique numa forma fechada e arraste para cima/baixo.':t==='calibrate'?'Calibração: clique em dois pontos conhecidos na imagem.':t==='orbit'?'Órbita: arraste em 3D. Roda do rato = zoom.':'Importe uma imagem, calibre, desenhe por cima, gere LSF, pré-calcule e exporte CSV.'}
@@ -436,6 +438,32 @@ function getDarkMap(canvas){
     }
   }
   return {dark,w,h};
+}
+
+
+function makePlanLineOverlay(canvas){
+  const w=canvas.width,h=canvas.height,src=canvas.getContext('2d').getImageData(0,0,w,h),d=src.data;
+  const out=document.createElement('canvas');
+  out.width=w; out.height=h;
+  const ctx=out.getContext('2d');
+  const img=ctx.createImageData(w,h), o=img.data;
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const i=(y*w+x)*4;
+      const r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];
+      const gray=(r+g+b)/3;
+      // Preserve real drawing lines/hatches. Do not invent wall bands.
+      const isLine=a>20 && gray<215;
+      if(isLine){
+        const strength=gray<120?245:(gray<165?210:150);
+        o[i]=0; o[i+1]=0; o[i+2]=0; o[i+3]=strength;
+      }else{
+        o[i]=255; o[i+1]=255; o[i+2]=255; o[i+3]=0;
+      }
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return out.toDataURL('image/png');
 }
 
 function detectVisualWallOverlay(canvas){
@@ -781,22 +809,23 @@ function importImage(file){
   r.onload=()=>{
     const img=new Image();
     img.onload=()=>{
-      S.image={src:r.result,x:-3.4,y:2.5,w:Math.min(620,img.width),h:Math.min(430,img.height),scale:1};
-      S.layers.image=true;
       const canvas=document.createElement('canvas');
-      const maxW=1400, sc=Math.min(1,maxW/img.width);
-      canvas.width=Math.round(img.width*sc);canvas.height=Math.round(img.height*sc);
+      const maxW=1800, sc=Math.min(1,maxW/img.width);
+      canvas.width=Math.round(img.width*sc); canvas.height=Math.round(img.height*sc);
       const ctx=canvas.getContext('2d');
-      ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      try{S.wallOverlay=detectVisualWallOverlay(canvas)}catch(e){console.warn(e);S.wallOverlay=null}
+      const lineSrc=makePlanLineOverlay(canvas);
+      S.image={src:r.result,lineSrc,x:-3.4,y:2.5,w:Math.min(620,img.width),h:Math.min(430,img.height),scale:1};
+      S.wallOverlay=null;
+      S.layers.image=true;
       const cb=document.querySelector('[data-layer="image"]');
       if(cb)cb.checked=true;
       S.importView.darkLines=true;
       S.importView.contrast=true;
       S.importView.wallFill=true;
       setMode('2d');
-      msg('Imagem importada com paredes estruturais realçadas a preto. Agora calibre por 2 pontos.');
+      msg('Imagem importada com realce corrigido: escurece as linhas reais do desenho, sem criar barras falsas.');
       panel();
       render();
     };

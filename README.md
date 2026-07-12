@@ -1,21 +1,28 @@
-# Aloe LSF 360 — importação com paredes pretas imediatas
+# Aloe LSF 360 — realce da importação corrigido
 
-## Correção pedida
+## Correção
 
-Ao importar a planta, a app passa a gerar imediatamente uma camada visual com as **paredes estruturais a preto**, sem precisar de clicar primeiro em Auto desenho.
+A versão anterior criava barras pretas falsas na importação.  
+Esta versão corrige isso.
 
-## Fluxo correto
+Agora o realce da importação:
+
+- segue os **píxeis reais** da planta importada;
+- escurece linhas, hachuras e paredes existentes no desenho;
+- não cria linhas verticais/horizontais falsas;
+- não tapa a planta com uma grelha preta artificial.
+
+## Fluxo
 
 1. Importar imagem/PDF.
-2. A planta aparece logo com paredes estruturais realçadas a preto.
+2. A planta aparece com as linhas reais escurecidas.
 3. Calibrar por 2 pontos.
-4. Usar Auto desenho para transformar a planta em geometria/editável.
-5. Gerar LSF e CSV.
+4. Clicar em Auto desenho para gerar paredes editáveis.
+5. Gerar LSF / CSV.
 
 ## Mantém
 
 - base `NUMERACAO_VAOS_POR_PAINEL`;
 - numeração automática dos vãos;
-- associação vão/painel;
-- CSV com mapa de vãos;
-- sem módulos pesados de laje/cobertura.
+- associação dos vãos a parede/painel;
+- CSV com mapa de vãos.
