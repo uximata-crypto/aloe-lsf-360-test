@@ -1,39 +1,41 @@
-# Aloe DWG Converter Server — Render Fix
+# Aloe DWG Converter Server — Render Low RAM Fix
 
-Esta versão corrige o erro de build no Render.
+Esta versão é para Render Free.
 
-## Alteração principal
+## Correções
 
-O Dockerfile já **não usa**:
+- Compila LibreDWG com `MAKEFLAGS=-j1`;
+- evita paralelismo para reduzir consumo de RAM;
+- adiciona dependências extra:
+  - help2man
+  - libxml2-dev
+  - libpcre2-dev
+  - zlib1g-dev
+  - perl
 
-```bash
-apt-get install libredwg-tools
+## No GitHub
+
+Substitua dentro da pasta:
+
+```text
+dwg-converter-server
 ```
 
-porque esse pacote pode não existir no ambiente Debian usado pelo Render.
+estes ficheiros:
 
-Agora o Dockerfile:
+```text
+Dockerfile
+README.md
+```
 
-1. instala ferramentas de compilação;
-2. faz clone do LibreDWG;
-3. compila o `dwgread`;
-4. usa `dwgread` para converter DWG em DXF.
+Depois faça commit.
 
 ## No Render
 
-Configuração:
+Clique em:
 
 ```text
-Language: Docker
-Branch: main
-Root Directory: dwg-converter-server
-Instance Type: Free
-Environment Variables: vazio
+Manual Deploy → Deploy latest commit
 ```
 
-Depois clicar em **Manual Deploy → Deploy latest commit** ou fazer novo commit no GitHub.
-
-## Atenção
-
-O primeiro build pode demorar mais porque compila o LibreDWG.
-Alguns DWG recentes/proprietários podem não converter.
+O build será mais lento, mas tem mais hipótese de passar no plano Free.

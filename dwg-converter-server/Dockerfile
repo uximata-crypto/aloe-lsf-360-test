@@ -1,7 +1,9 @@
 FROM node:20-bookworm
 
-# Instala ferramentas para compilar LibreDWG a partir do código-fonte.
-# Isto evita o erro do Render quando o pacote libredwg-tools não existe no apt.
+# Render Free tem pouca memória. Esta versão compila LibreDWG de forma mais lenta,
+# mas mais estável: sem paralelismo e com dependências completas.
+ENV MAKEFLAGS="-j1"
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     git \
@@ -12,15 +14,19 @@ RUN apt-get update \
     libtool \
     pkg-config \
     texinfo \
+    help2man \
     python3 \
+    perl \
+    libxml2-dev \
+    libpcre2-dev \
+    zlib1g-dev \
   && rm -rf /var/lib/apt/lists/*
 
-# Compila e instala LibreDWG / dwgread
 RUN git clone --depth 1 https://git.savannah.gnu.org/git/libredwg.git /tmp/libredwg \
   && cd /tmp/libredwg \
   && autoreconf -fi \
   && ./configure --prefix=/usr/local \
-  && make -j2 \
+  && make \
   && make install \
   && ldconfig \
   && dwgread --version \
