@@ -1,69 +1,31 @@
-# Aloe LSF 360 — DWG converter completo
+# Aloe LSF 360 — Render Low RAM Fix
 
-Esta versão inclui:
+Esta versão corrige o build no Render Free.
 
-1. app Aloe LSF 360;
-2. proxy Vercel `/api/convert-dwg`;
-3. servidor externo `dwg-converter-server` para converter DWG → DXF;
-4. instruções para ligar tudo com `CONVERT_API_URL`.
-
-## Porque apareceu o erro
-
-A app já tentou converter o DWG, mas o Vercel respondeu:
+O problema anterior foi na compilação do LibreDWG.  
+Agora o Dockerfile compila com menos memória:
 
 ```text
-Conversor DWG não configurado
+MAKEFLAGS=-j1
 ```
 
-Isto significa que falta configurar a variável:
+## Atualizar no GitHub
 
-```text
-CONVERT_API_URL
-```
-
-## Como resolver
-
-### Passo 1 — publicar o servidor conversor
-
-Publique a pasta:
+Substituir ficheiros na pasta:
 
 ```text
 dwg-converter-server
 ```
 
-em Render, Railway, VPS ou Docker.
-
-O endpoint final deve ser algo assim:
+principalmente:
 
 ```text
-https://SEU-CONVERSOR/convert-dwg
+Dockerfile
+README.md
 ```
 
-### Passo 2 — configurar o Vercel
-
-No projeto Vercel da app Aloe LSF 360, criar variável de ambiente:
+Depois fazer novo commit e no Render:
 
 ```text
-CONVERT_API_URL=https://SEU-CONVERSOR/convert-dwg
+Manual Deploy → Deploy latest commit
 ```
-
-### Passo 3 — redeploy
-
-Depois faça novo deploy no Vercel.
-
-### Passo 4 — testar
-
-1. abra a app;
-2. clique em Importar imagem;
-3. carregue `.dwg`;
-4. a app chama o conversor;
-5. recebe DXF;
-6. importa o DXF automaticamente.
-
-## Mantido
-
-- menus;
-- barra de escurecer planta;
-- importação de imagem/PDF/DXF;
-- numeração dos vãos;
-- CSV.
