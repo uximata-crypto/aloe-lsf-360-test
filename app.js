@@ -265,7 +265,7 @@ async function importDWG(file){
     msg('DWG convertido para DXF e importado com sucesso.');
   }catch(e){
     console.error(e);
-    msg('Não foi possível converter DWG automaticamente: '+(e.message||e)+'. Configure o conversor no servidor ou converta manualmente para DXF.');
+    msg('DWG recebido, mas falta ligar o conversor. Configure CONVERT_API_URL no Vercel apontando para o servidor conversor DWG→DXF. Depois volte a carregar o DWG.');
     S.tab='image';
     $$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='image'));
     panel();
