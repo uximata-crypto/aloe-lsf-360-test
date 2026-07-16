@@ -1,52 +1,39 @@
-# Aloe DWG Converter Server
+# Aloe DWG Converter Server — Render Fix
 
-Servidor externo para converter DWG em DXF.
+Esta versão corrige o erro de build no Render.
 
-A app Vercel chama:
+## Alteração principal
 
-```text
-/api/convert-dwg
-```
-
-Esse proxy chama este servidor:
-
-```text
-POST /convert-dwg
-```
-
-## Deploy rápido
-
-### Opção 1 — Docker
+O Dockerfile já **não usa**:
 
 ```bash
-docker build -t aloe-dwg-converter .
-docker run -p 3000:3000 aloe-dwg-converter
+apt-get install libredwg-tools
 ```
 
-Teste:
+porque esse pacote pode não existir no ambiente Debian usado pelo Render.
 
-```bash
-curl http://localhost:3000/health
-```
+Agora o Dockerfile:
 
-### Opção 2 — Render/Railway/VPS
+1. instala ferramentas de compilação;
+2. faz clone do LibreDWG;
+3. compila o `dwgread`;
+4. usa `dwgread` para converter DWG em DXF.
 
-Faça deploy desta pasta `dwg-converter-server`.
+## No Render
 
-Depois copie o URL público, por exemplo:
+Configuração:
 
 ```text
-https://aloe-dwg-converter.onrender.com/convert-dwg
+Language: Docker
+Branch: main
+Root Directory: dwg-converter-server
+Instance Type: Free
+Environment Variables: vazio
 ```
 
-No Vercel da app Aloe LSF 360, crie a variável:
+Depois clicar em **Manual Deploy → Deploy latest commit** ou fazer novo commit no GitHub.
 
-```text
-CONVERT_API_URL=https://aloe-dwg-converter.onrender.com/convert-dwg
-```
+## Atenção
 
-Depois faça redeploy da app Vercel.
-
-## Nota
-
-O servidor usa `dwgread` do LibreDWG. Alguns DWG recentes/proprietários podem não converter. Nesses casos, use ODA File Converter num servidor próprio ou converta para DXF no AutoCAD/BricsCAD/DraftSight.
+O primeiro build pode demorar mais porque compila o LibreDWG.
+Alguns DWG recentes/proprietários podem não converter.
