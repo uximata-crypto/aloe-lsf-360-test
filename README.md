@@ -1,20 +1,42 @@
-# Aloe LSF 360 — menus OK + barra para escurecer planta
+# Aloe LSF 360 — função DWG -> DXF
 
-Esta versão parte da base estável `RETORNO_BASE_MENUS_OK`.
+Base: `MENUS_OK_BARRA_ESCURECER_PAREDES`.
 
-## Novo
+## Acrescentado
 
-No separador **Imagem**, foi acrescentada a barra:
+Foi criada a função:
 
-- **Escurecer paredes / linhas**
-- **Transparência da planta**
+```js
+convertDWGToDXF(file)
+```
 
-Também existem botões rápidos:
+E o fluxo:
 
-- **Normal**
-- **Mais escuro**
+```js
+importDWG(file)
+```
+
+Quando carregar `.dwg`, a app tenta:
+
+1. enviar o ficheiro para `/api/convert-dwg`;
+2. receber DXF;
+3. importar automaticamente o DXF;
+4. continuar com os processos antigos: calibrar, Auto desenho, LSF, CSV.
 
 ## Importante
 
-Esta alteração só mexe na visualização da imagem importada.  
-Não altera menus, Auto desenho, vãos, CSV nem cálculo.
+DWG nativo não é convertido diretamente no browser.  
+A função está pronta, mas precisa de um conversor no servidor.
+
+## Ficheiros novos
+
+- `api/convert-dwg.js`
+- `server-dwg-converter/README.md`
+
+## Ativar conversão real
+
+No Vercel, configurar variável de ambiente:
+
+```text
+CONVERT_API_URL=https://SEU-SERVIDOR/convert-dwg
+```

@@ -255,11 +255,21 @@ function importPlanFile(file){
   if(name.endsWith('.dwg')) return importDWG(file);
   return importImage(file);
 }
-function importDWG(file){
-  msg('DWG recebido. O navegador não lê DWG nativo: converta para DXF ou use conversor CAD no servidor.');
-  S.tab='image';
-  $$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='image'));
-  panel();
+async function importDWG(file){
+  if(!file)return;
+  try{
+    msg('A converter DWG para DXF...');
+    const dxfText=await convertDWGToDXF(file);
+    const outName=(file.name||'desenho.dwg').replace(/\.dwg$/i,'.dxf');
+    importDXFText(dxfText,outName);
+    msg('DWG convertido para DXF e importado com sucesso.');
+  }catch(e){
+    console.error(e);
+    msg('Não foi possível converter DWG automaticamente: '+(e.message||e)+'. Configure o conversor no servidor ou converta manualmente para DXF.');
+    S.tab='image';
+    $$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='image'));
+    panel();
+  }
 }
 async function importPDF(file){
   try{
@@ -280,6 +290,29 @@ async function importPDF(file){
     msg('Não foi possível importar o PDF. Tente exportar a página para PNG/JPG ou DXF.');
   }
 }
+
+function importDXFText(dxfText,name='convertido.dxf'){
+  const file=new File([dxfText],name,{type:'application/dxf'});
+  return importDXF(file);
+}
+async function convertDWGToDXF(file){
+  const fd=new FormData();
+  fd.append('dwg',file,file.name||'desenho.dwg');
+  const res=await fetch('/api/convert-dwg',{method:'POST',body:fd});
+  if(!res.ok){
+    let msg='Falha na conversão DWG para DXF.';
+    try{const j=await res.json(); if(j&&j.error)msg=j.error;}catch{}
+    throw new Error(msg);
+  }
+  const ct=res.headers.get('content-type')||'';
+  if(ct.includes('application/json')){
+    const j=await res.json();
+    if(j.dxf)return j.dxf;
+    if(j.error)throw new Error(j.error);
+  }
+  return await res.text();
+}
+
 function importDXF(file){
   const reader=new FileReader();
   reader.onload=()=>{
